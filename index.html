@@ -5111,9 +5111,9 @@ ${becSvg}
 ${cnImg('logoA', 60, 625, 310, 125, ex, 'Logo izquierdo')}
 ${cnImg('logoB', 385, 620, 205, 200, ex, 'Logo derecho')}
 ${cnBackBottom(ub, unit, sub)}
-<text x="324" y="895" text-anchor="middle" font-size="19" font-style="italic" font-weight="800" fill="#fff" ${ss}>${escapeXml(b.emision)}</text>
-<text x="324" y="925" text-anchor="middle" font-size="18" font-style="italic" font-weight="300" fill="#fff" ${ss}>${escapeXml(b.valid)}</text>
-${cnText(addr, 324, 960, 22, `text-anchor="middle" font-size="15" font-weight="700" fill="#fff" ${ss}`)}`;
+<text x="324" y="892" text-anchor="middle" font-size="19" font-style="italic" font-weight="800" fill="#fff" ${ss}>${escapeXml(b.emision)}</text>
+<text x="324" y="922" text-anchor="middle" font-size="18" font-style="italic" font-weight="300" fill="#fff" ${ss}>${escapeXml(b.valid)}</text>
+${cnText(addr, 324, 947, addr.length > 3 ? Math.min(20.5, 41 / (addr.length - 1)) : 20.5, `text-anchor="middle" font-size="15" font-weight="700" fill="#fff" ${ss}`)}`;
 }
 
 function cnSvg(side, scale) {
