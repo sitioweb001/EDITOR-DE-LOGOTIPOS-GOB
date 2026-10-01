@@ -155,19 +155,6 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 
 ---
 
-## 🚀 Cómo usarlo
-
-**Opción A: en línea con GitHub Pages**
-
-1. Sube todos los archivos a tu repositorio.
-2. Ve a **Settings → Pages**.
-3. En *Source* elige la rama `main` y la carpeta `/ (root)`.
-4. Abre `https://TU-USUARIO.github.io/TU-REPOSITORIO/`.
-
-**Opción B: local**
-
-1. Descarga el repositorio.
-2. Abre `index.html` en tu navegador.
 
 ---
 
@@ -182,13 +169,13 @@ Al compartir el enlace aparecen el escudo, el título **Editor de Marca Instituc
 ## ⚠️ Uso y aviso
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Uso exclusivo del Gobierno de El Salvador (2019–2026).      │
-│                                                              │
-│  La aplicación del emblema es obligatoria en los documentos  │
-│  oficiales; su composición, proporciones y colores no deben  │
-│  alterarse.                                                  │
-└──────────────────────────────────────────────────────────────┘
+                              ┌──────────────────────────────────────────────────────────────┐
+                              │  Uso exclusivo del Gobierno de El Salvador (2019–2026).      │
+                              │                                                              │
+                              │  La aplicación del emblema es obligatoria en los documentos  │
+                              │  oficiales; su composición, proporciones y colores no deben  │
+                              │  alterarse.                                                  │
+                              └──────────────────────────────────────────────────────────────┘
 ```
 
 <div align="center">
