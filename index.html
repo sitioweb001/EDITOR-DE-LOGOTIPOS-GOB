@@ -681,6 +681,8 @@ input[type="color"]::-webkit-color-swatch{border-radius:6px;border:none;}
   </div>
   <div class="topbar-actions">
     <button class="btn ghost icon-only" data-theme-toggle title="Cambiar modo claro/oscuro"></button>
+    <button class="btn" id="btnUseWatermark" onclick="sendLogoToWatermark()" title="Usar este logotipo como marca de agua en un PDF">Insertar marca de agua en PDF</button>
+    <button class="btn" id="btnUseVideo" onclick="useLogoForVideo()" title="Usar este logotipo en la animación de intro/outro">Usar logo para video</button>
     <button class="btn" id="btnSaveProject" title="Guardar configuración en este navegador">Guardar proyecto</button>
     <button class="btn" id="btnLoadProject" title="Cargar configuración guardada">Cargar proyecto</button>
     <button class="btn danger" id="btnReset" title="Restablecer todos los valores">Restablecer</button>
@@ -924,6 +926,12 @@ document.addEventListener('click', (e) => {
   if (btn) toggleTheme();
 });
 
+/* Abre la herramienta Crear Logotipo desde cualquier otra herramienta */
+function openLogoEditor() {
+  const go = document.getElementById('goLogo');
+  if (go) go.click();
+}
+
 /* ---------- Router SPA (sin recarga de página) ---------- */
 function navigateTo(viewId) {
   document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
@@ -932,20 +940,17 @@ function navigateTo(viewId) {
 }
 
 /* =========================================================================
-   PROTECCIÓN POR CONTRASEÑA (compartida por ambas herramientas)
+   ADVERTENCIA DE CAMBIOS (compartida por ambas herramientas)
    El bloque institucional del logotipo y el logo oficial protegido en la
    herramienta de marca de agua comparten esta misma traba de uso simple.
    ========================================================================= */
-const EDIT_PASSWORD = '747';
 
 /* Puente entre herramientas: el logotipo creado en "Crear Logotipo" puede
    enviarse a "Insertar Marca de Agua" mediante este contenedor compartido. */
 let pendingLogoForWatermark = null;
 function requestUnlock(purpose, onSuccess) {
-  const val = window.prompt(`Acción protegida. Ingresa la contraseña para ${purpose}:`);
-  if (val === null) return;
-  if (val.trim() === EDIT_PASSWORD) onSuccess();
-  else toast('Contraseña incorrecta', 'err');
+  const ok = window.confirm(`⚠️ ADVERTENCIA\n\nVas a ${purpose}.\n\nModificar elementos institucionales puede alterar la identidad de marca del Gobierno de El Salvador. Hazlo solo si cuentas con autorización y respetando el Manual de Uso de Marca.\n\n¿Deseas continuar?`);
+  if (ok) onSuccess();
 }
 
 /* =========================================================================
@@ -1084,8 +1089,8 @@ let zoom = 1;
 
 /* ========================================================================
    PROTECCIÓN POR CONTRASEÑA
-   (EDIT_PASSWORD y requestUnlock están definidos de forma compartida en el
-   script "shared", ya que la misma contraseña protege también el logotipo
+   (requestUnlock están definidos de forma compartida en el
+   script "shared", ya que la misma advertencia aplica también al logotipo
    oficial en la herramienta de marca de agua.)
    ======================================================================== */
 let instUnlocked = false;
@@ -1095,7 +1100,7 @@ function unlockInstitutional() {
   requestUnlock('editar el bloque institucional', () => {
     instUnlocked = true;
     renderControls();
-    toast('Bloque institucional desbloqueado', 'ok');
+    toast('Edición del bloque institucional habilitada. Ten cuidado con los cambios.', 'ok');
   });
 }
 function lockInstitutional() {
@@ -1112,8 +1117,13 @@ const measureCtx = measureCanvas.getContext('2d');
 function measureLineWidth(text, fontFamily, fontSizePx, fontWeight, letterSpacingPx) {
   if (!text) return 0;
   measureCtx.font = `${fontWeight} ${fontSizePx}px ${fontFamily}`;
-  const base = measureCtx.measureText(text).width;
-  const extra = Math.max(0, text.length - 1) * (letterSpacingPx || 0);
+  const m = measureCtx.measureText(text);
+  // Algunas letras (A, V, Y, cursivas...) se extienden más allá de su ancho de avance;
+  // se usa el mayor entre ambos y un pequeño margen para que nunca se recorte la última letra.
+  const overhang = (typeof m.actualBoundingBoxRight === 'number') ? m.actualBoundingBoxRight : m.width;
+  const base = Math.max(m.width, overhang) + fontSizePx * 0.04;
+  const ls = letterSpacingPx || 0;
+  const extra = Math.max(0, text.length - 1) * ls + Math.max(0, ls);
   return base + extra;
 }
 
@@ -1555,13 +1565,13 @@ function renderInstitutionalCard() {
       <div class="lock-banner">
         ${ICONS.lock}
         <div>
-          <b>🔒 Bloque institucional protegido</b>
-          Este bloque siempre aparece primero y no puede eliminarse ni reordenarse. Su imagen y su texto pueden editarse, pero requieren contraseña.
-          <div class="lock-tip">Pide la contraseña a la persona responsable de la identidad institucional antes de modificar este bloque.</div>
+          <b>⚠️ Bloque institucional</b>
+          Este bloque siempre aparece primero y no puede eliminarse ni reordenarse. Su imagen y su texto pueden editarse, pero los cambios deben seguir el Manual de Uso de Marca.
+          <div class="lock-tip">Advertencia: modifica este bloque solo si cuentas con autorización de la persona responsable de la identidad institucional.</div>
         </div>
       </div>
       <div class="inst-preview">${defaultCrestPreviewSvg()}</div>
-      <button class="btn primary" style="justify-content:center;width:100%;" onclick="unlockInstitutional()">${ICONS.lock} Desbloquear edición</button>
+      <button class="btn primary" style="justify-content:center;width:100%;" onclick="unlockInstitutional()">${ICONS.warn} Editar bloque institucional</button>
     `);
   }
 
@@ -1667,7 +1677,7 @@ function renderInstitutionalCard() {
       Convertir a MAYÚSCULAS
     </label>` : ''}
 
-    <button class="btn ghost" style="width:100%;justify-content:center;" onclick="lockInstitutional()">${ICONS.lock} Bloquear de nuevo</button>
+    <button class="btn ghost" style="width:100%;justify-content:center;" onclick="lockInstitutional()">${ICONS.lock} Volver a proteger</button>
   `);
 }
 
@@ -2120,6 +2130,18 @@ function sendLogoToWatermark() {
   }
 }
 
+/* Lleva el logotipo actual a la herramienta de animación (la animación lo lee de aquí) */
+function useLogoForVideo() {
+  const comp = buildComposition();
+  if (!(comp.width > 0 && comp.height > 0)) { toast('El logotipo está vacío: activa al menos un bloque', 'err'); return; }
+  if (typeof navigateTo === 'function') navigateTo('view-anim');
+  try {
+    if (typeof animAssetsDirty !== 'undefined') animAssetsDirty = true;
+    if (typeof animPrepareAssets === 'function') animPrepareAssets().then(() => { if (typeof animRender === 'function') animRender(); });
+  } catch (e) { /* la animación recargará el logo al reproducir */ }
+  toast('Logotipo listo para el video', 'ok');
+}
+
 /* ========================================================================
    EXPORTAR SVG
    ======================================================================== */
@@ -2452,6 +2474,7 @@ function initWatermarkTool() {
         <div><h1>Insertar Marca de Agua</h1><span>Editor de Marca Institucional — Gobierno de El Salvador</span></div>
       </div>
       <div class="topbar-actions">
+        <button class="btn" onclick="openLogoEditor()" title="Ir a Crear Logotipo">Crear logo</button>
         <button class="btn ghost icon-only" id="wmUndoBtn" title="Deshacer (Ctrl+Z)">${ICONS.undo}</button>
         <button class="btn ghost icon-only" id="wmRedoBtn" title="Rehacer (Ctrl+Y)">${ICONS.redo}</button>
         <button class="btn ghost icon-only" data-theme-toggle title="Cambiar modo claro/oscuro"></button>
@@ -3296,7 +3319,7 @@ function wmPropertiesHtml(o) {
   <div style="padding:14px;border-bottom:1px solid var(--panel-border);display:flex;flex-direction:column;gap:12px;">
     <p class="hint" style="margin:0;"><b>Propiedades</b></p>
     ${isProtected ? `
-    <div class="lock-banner">${ICONS.lock}<div><b>🔒 Logotipo institucional protegido</b> No puede deformarse ni rotarse. Solo se permite mover, escalar (proporcionalmente) y ajustar opacidad.</div></div>` : ''}
+    <div class="lock-banner">${ICONS.lock}<div><b>⚠️ Logotipo institucional</b> No puede deformarse ni rotarse. Solo se permite mover, escalar (proporcionalmente) y ajustar opacidad.</div></div>` : ''}
     ${hasOv ? `
     <div class="lock-banner" style="background:var(--accent-soft);border-color:var(--accent);">
       <div><b>📍 Esta página tiene valores propios</b> Posición/tamaño/opacidad personalizados solo para la página ${wm.currentPage}.
@@ -4020,6 +4043,7 @@ function initAnimTool() {
         <div><h1>Crear Animación</h1><span>Editor de Marca Institucional — Gobierno de El Salvador</span></div>
       </div>
       <div class="topbar-actions">
+        <button class="btn" onclick="openLogoEditor()" title="Ir a Crear Logotipo para editar el logo del video">Editar logo</button>
         <button class="btn ghost icon-only" data-theme-toggle title="Cambiar modo claro/oscuro"></button>
       </div>
     </header>
