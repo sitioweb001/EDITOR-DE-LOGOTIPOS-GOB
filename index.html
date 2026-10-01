@@ -1030,6 +1030,9 @@ function makeDefaultBlock(id, text) {
     useColorOverride: false,
     colorOverride: '#001A70',
     minWidth: 0,
+    useImage: false,   // true = el bloque muestra una imagen (SVG/PNG/JPG) en vez de texto
+    image: null,       // { kind:'svg'|'raster', innerMarkup?, viewBox?, dataUrl?, naturalW, naturalH, originalName }
+    imageScale: 0.7,   // alto de la imagen como fracción del alto de la composición
   };
 }
 
@@ -1247,7 +1250,7 @@ function computeLayout() {
   };
 
   let cursor = instBlockW;
-  const activeBlocks = state.blocks.filter(b => b.active && b.text && b.text.trim().length > 0);
+  const activeBlocks = state.blocks.filter(b => b.active && (b.useImage ? !!b.image : (b.text && b.text.trim().length > 0)));
   const divColor = subColorFor('dividers') || state.divider.color || gColor;
 
   activeBlocks.forEach((block) => {
@@ -1255,6 +1258,24 @@ function computeLayout() {
     const divY = (compH - divHeight) / 2;
     layout.dividers.push({ x: cursor, y: divY, w: divThickness, h: divHeight, color: divColor });
     cursor += divThickness + gap;
+
+    // Bloque con imagen en lugar de texto
+    if (block.useImage && block.image) {
+      const imgH = compH * clamp(block.imageScale || 0.7, 0.1, 1);
+      const imgW = imgH * (block.image.naturalW / block.image.naturalH);
+      const imgBlockW = Math.max(imgW, (block.minWidth || 0) * gScale);
+      let imgX = cursor;
+      if (block.align === 'center') imgX = cursor + (imgBlockW - imgW) / 2;
+      else if (block.align === 'right') imgX = cursor + imgBlockW - imgW;
+      let imgY;
+      if (block.valign === 'top') imgY = padY;
+      else if (block.valign === 'bottom') imgY = compH - padY - imgH;
+      else imgY = (compH - imgH) / 2;
+      imgY = Math.max(0, imgY);
+      layout.textBlocks.push({ image: { x: imgX, y: imgY, w: imgW, h: imgH, data: block.image }, lines: [], ys: [], color: gColor });
+      cursor += imgBlockW;
+      return;
+    }
 
     const fontFamily = resolveFontFamily(block.font);
     const fontSize = clamp(block.size, 8, 160) * gScale;
@@ -1298,6 +1319,15 @@ function computeLayout() {
 /* ========================================================================
    SVG A PARTIR DEL LAYOUT
    ======================================================================== */
+function blockImageSvgMarkup(img, x, y, w, h) {
+  if (img.kind === 'svg') {
+    return `<svg x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" ` +
+      `viewBox="${escapeXml(img.viewBox)}" style="overflow:hidden" preserveAspectRatio="xMidYMid meet">${img.innerMarkup}</svg>`;
+  }
+  return `<image x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" ` +
+    `href="${img.dataUrl}" preserveAspectRatio="xMidYMid meet"/>`;
+}
+
 function svgFromLayout(layout) {
   const parts = [];
   const fontFaceFamilies = new Set();
@@ -1343,6 +1373,10 @@ function svgFromLayout(layout) {
   });
 
   layout.textBlocks.forEach(tb => {
+    if (tb.image) {
+      parts.push(blockImageSvgMarkup(tb.image.data, tb.image.x, tb.image.y, tb.image.w, tb.image.h));
+      return;
+    }
     fontFaceFamilies.add(tb.fontFamily);
     const lsAttr = tb.letterSpacing ? ` letter-spacing="${r2(tb.letterSpacing)}"` : '';
     const tspans = tb.lines.map((line, i) =>
@@ -1684,7 +1718,9 @@ function renderInstitutionalCard() {
 /* ---------- Bloques editables ---------- */
 function blockCardHtml(block) {
   const n = block.id;
-  const firstLine = (block.text || '').split('\n')[0] || '(vacío)';
+  const firstLine = block.useImage
+    ? ((block.image && block.image.originalName) || '(imagen sin cargar)')
+    : ((block.text || '').split('\n')[0] || '(vacío)');
   const activeCls = block.active ? '' : 'inactive';
   const toggleCls = block.active ? 'on' : '';
 
@@ -1699,6 +1735,13 @@ function blockCardHtml(block) {
       </div>
     </div>
     <div class="block-card-body">
+      <div class="field">
+        <button class="btn ghost" style="padding:5px 10px;font-size:11.5px;" onclick="toggleBlockImageMode(${n})"
+          title="${block.useImage ? 'Volver a mostrar texto en este bloque' : 'Reemplazar el texto de este bloque por una imagen SVG, PNG o JPG'}">
+          ${block.useImage ? ICONS.type : ICONS.image} ${block.useImage ? 'Usar texto' : 'Usar imagen en vez de texto'}
+        </button>
+      </div>
+      ${block.useImage ? blockImagePanelHtml(block) : `
       <div class="field">
         <label class="flabel">Texto (usa Enter para salto de línea)</label>
         <textarea oninput="updateBlockField(${n},'text',this.value)" onchange="renderControls()">${escapeHtml(block.text)}</textarea>
@@ -1741,7 +1784,7 @@ function blockCardHtml(block) {
           <input type="range" min="0" max="400" step="5" value="${block.minWidth||0}"
             oninput="updateBlockField(${n},'minWidth',parseFloat(this.value)); this.closest('.field').querySelector('.val').textContent=this.value+'px';">
         </div>
-      </div>
+      </div>`}
 
       <div class="field">
         <label class="flabel">Alineación horizontal</label>
@@ -1761,6 +1804,7 @@ function blockCardHtml(block) {
         </div>
       </div>
 
+      ${block.useImage ? '' : `
       <label class="check-row">
         <input type="checkbox" ${block.uppercase?'checked':''} onchange="updateBlockField(${n},'uppercase',this.checked)">
         Convertir a MAYÚSCULAS
@@ -1775,9 +1819,62 @@ function blockCardHtml(block) {
         <input type="color" value="${block.colorOverride}" oninput="updateBlockField(${n},'colorOverride',this.value)">
         <span class="hint" style="margin:0;">Color específico de este bloque</span>
       </div>` : ''}
-      ${(block.active && (!block.text || !block.text.trim())) ? `<p class="hint" style="color:var(--danger);">Este bloque está activo pero no tiene texto, por lo que no aparecerá en la composición.</p>` : ''}
+      ${(block.active && (!block.text || !block.text.trim())) ? `<p class="hint" style="color:var(--danger);">Este bloque está activo pero no tiene texto, por lo que no aparecerá en la composición.</p>` : ''}`}
+      ${(block.active && block.useImage && !block.image) ? `<p class="hint" style="color:var(--danger);">Este bloque está activo pero aún no tiene imagen, por lo que no aparecerá en la composición.</p>` : ''}
     </div>
   </div>`;
+}
+
+/* Panel de imagen de un bloque (modo "usar imagen en vez de texto") */
+function blockImagePanelHtml(block) {
+  const n = block.id;
+  const img = block.image;
+  let preview = '';
+  if (img) {
+    preview = img.kind === 'svg'
+      ? `<svg viewBox="${escapeHtml(img.viewBox)}" style="height:100%">${img.innerMarkup}</svg>`
+      : `<img src="${img.dataUrl}" style="height:100%;width:auto;max-width:100%;object-fit:contain;">`;
+  }
+  const scale = block.imageScale || 0.7;
+  return `
+    <div class="field">
+      <label class="flabel">${ICONS.image} Imagen del bloque</label>
+      ${img ? `<div class="inst-preview" style="height:64px;">${preview}</div>` : ''}
+      <label class="file-drop">
+        ${ICONS.upload} ${img ? 'Cambiar imagen' : 'Subir SVG, PNG o JPG'}
+        <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" style="display:none" onchange="handleBlockImageUpload(event, ${n})">
+      </label>
+      ${img
+        ? `<p class="hint">Imagen actual: <b>${escapeHtml(img.originalName || 'imagen')}</b></p>
+           <button class="btn ghost" style="width:100%;justify-content:center;" onclick="removeBlockImage(${n})">Quitar imagen</button>`
+        : `<p class="hint">Sube un logo para que aparezca en este bloque en lugar del texto. Conserva sus propios colores.</p>`}
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label class="flabel">Tamaño de la imagen <span class="val">${Math.round(scale*100)}%</span></label>
+        <input type="range" min="0.1" max="1" step="0.01" value="${scale}"
+          oninput="updateBlockField(${n},'imageScale',parseFloat(this.value)); this.closest('.field').querySelector('.val').textContent=Math.round(this.value*100)+'%';">
+      </div>
+      <div class="field">
+        <label class="flabel">Ancho mínimo <span class="val">${block.minWidth||0}px</span></label>
+        <input type="range" min="0" max="400" step="5" value="${block.minWidth||0}"
+          oninput="updateBlockField(${n},'minWidth',parseFloat(this.value)); this.closest('.field').querySelector('.val').textContent=this.value+'px';">
+      </div>
+    </div>`;
+}
+
+function toggleBlockImageMode(id) {
+  const b = state.blocks.find(x => x.id === id);
+  if (!b) return;
+  b.useImage = !b.useImage;
+  renderControls(); renderPreview();
+}
+function removeBlockImage(id) {
+  const b = state.blocks.find(x => x.id === id);
+  if (!b) return;
+  b.image = null;
+  renderControls(); renderPreview();
+  toast('Imagen quitada del bloque', 'ok');
 }
 
 function weightLabel(w) {
@@ -2207,11 +2304,23 @@ async function drawLayoutToCanvas(layout, scale) {
 
   layout.dividers.forEach(d => { ctx.fillStyle = d.color; ctx.fillRect(d.x, d.y, d.w, d.h); });
 
-  layout.textBlocks.forEach(tb => {
+  for (const tb of layout.textBlocks) {
+    if (tb.image) {
+      const bi = tb.image;
+      let bImg;
+      if (bi.data.kind === 'svg') {
+        const bSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.max(1, bi.w * scale)}" height="${Math.max(1, bi.h * scale)}" viewBox="${bi.data.viewBox}">${bi.data.innerMarkup}</svg>`;
+        bImg = await loadSvgImage(bSvg);
+      } else {
+        bImg = await loadRasterImage(bi.data.dataUrl);
+      }
+      ctx.drawImage(bImg, bi.x, bi.y, bi.w, bi.h);
+      continue;
+    }
     ctx.fillStyle = tb.color;
     ctx.font = `${tb.weight} ${tb.fontSize}px ${tb.fontFamily}`;
     tb.lines.forEach((line, i) => drawCanvasLine(ctx, line, tb.x, tb.ys[i], tb.textAnchor, tb.letterSpacing));
-  });
+  }
 
   return canvas;
 }
@@ -2333,6 +2442,62 @@ function handleInstImageUpload(evt) {
     reader.readAsDataURL(file);
   }
   evt.target.value = '';
+}
+
+/* ========================================================================
+   IMAGEN EN BLOQUES DE TEXTO (SVG, PNG o JPG) — reemplaza el texto del bloque
+   ======================================================================== */
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+    const isRaster = /^image\/(png|jpe?g)$/.test(file.type) || /\.(png|jpe?g)$/i.test(file.name);
+    if (!isSvg && !isRaster) { reject(new Error('Formato no soportado. Usa SVG, PNG o JPG')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Error al leer el archivo'));
+    if (isSvg) {
+      reader.onload = () => {
+        const root = sanitizeSvgString(reader.result);
+        if (!root) { reject(new Error('El archivo SVG no es válido')); return; }
+        let vb = root.getAttribute('viewBox');
+        let w, h;
+        if (vb) {
+          const parts = vb.trim().split(/[\s,]+/).map(Number);
+          w = parts[2]; h = parts[3];
+        } else {
+          w = parseFloat(root.getAttribute('width')) || 300;
+          h = parseFloat(root.getAttribute('height')) || 300;
+          vb = `0 0 ${w} ${h}`;
+        }
+        if (!w || !h || !isFinite(w) || !isFinite(h)) { reject(new Error('No se pudo determinar el tamaño del SVG')); return; }
+        resolve({ kind: 'svg', innerMarkup: root.innerHTML, viewBox: vb, naturalW: w, naturalH: h, originalName: file.name });
+      };
+      reader.readAsText(file);
+    } else {
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        const img = new Image();
+        img.onload = () => resolve({ kind: 'raster', dataUrl, naturalW: img.naturalWidth, naturalH: img.naturalHeight, originalName: file.name });
+        img.onerror = () => reject(new Error('No se pudo leer la imagen'));
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+}
+
+function handleBlockImageUpload(evt, id) {
+  const file = evt.target.files && evt.target.files[0];
+  evt.target.value = '';
+  if (!file) return;
+  const b = state.blocks.find(x => x.id === id);
+  if (!b) return;
+  readImageFile(file).then(image => {
+    b.image = image;
+    b.useImage = true;
+    renderControls();
+    renderPreview();
+    toast(`Imagen cargada en el bloque ${id}`, 'ok');
+  }).catch(err => toast(err.message || 'No se pudo cargar la imagen', 'err'));
 }
 
 /* ========================================================================
