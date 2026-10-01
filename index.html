@@ -1531,7 +1531,8 @@ function loadAutosave() {
    ======================================================================== */
 const controlsPane = document.getElementById('controlsPane');
 const collapseState = { guide: true, inst: true, blocks: true, typo: true, sep: true, color: true, subcolor: true, size: true, presets: true, exportc: true,
-  animMode: true, animMeasures: true, animFx: true, animContent: true, animBg: true, animTiming: true, animExport: true }; // todos contraídos al abrir por primera vez (pedido explícito)
+  animMode: true, animMeasures: true, animFx: true, animContent: true, animBg: true, animTiming: true, animExport: true,
+  cnMode: true, cnFront: true, cnPhoto: true, cnBack: true, cnImgs: true, cnColor: true, cnExp: true }; // todos contraídos al abrir por primera vez (pedido explícito)
 
 function cardWrap(key, icon, title, bodyHtml) {
   const collapsed = collapseState[key] ? 'collapsed' : '';
@@ -4908,6 +4909,8 @@ const cn = {
     qrLabel: 'DOCUMENTOS', qrLink: '', becado: 'BECADO POR DI EN:', becadoVal: 'UNIVERSIDAD GERARDO BARRIOS - SM.',
     emision: 'Fecha de emisión: 01/01/2026', valid: 'Válido hasta: Finalización de estudio o cancelación de beca',
     addr: 'Dirección de Integración\n29 Avenida Norte y Calle Zacamil, Distrito Mejicanos,\nSan Salvador Centro', wm: true },
+  o: { front: '', unit: '', sub: '' }, /* textos opcionales del modo «otro ministerio» */
+  other: false, /* true = «Soy de otro ministerio o dirección»: logos de Dirección de Integración / proyecto limpios */
   img: { qr: null, prog: null, logoA: null, logoB: null },
 };
 const CN_IMG_LABELS = { qr: 'Código QR', prog: 'Logo del proyecto / programa (centro)', logoA: 'Logo izquierdo (institución)', logoB: 'Logo derecho (programa)' };
@@ -4931,12 +4934,13 @@ function cnCrest(cx, y, h, color, op) {
 function cnText(lines, x, y0, lh, attrs) {
   return lines.map((l, i) => `<text x="${x}" y="${y0 + i * lh}" ${attrs}>${escapeXml(l)}</text>`).join('');
 }
-function cnImg(key, x, y, w, h, ex, label) {
+function cnImg(key, x, y, w, h, ex, label, onLight) {
   const im = cn.img[key];
   if (im && im.isPreset && CN_PRESETS[key]) [x, y, w, h] = CN_PRESETS[key].box;
   if (im) return blockImageSvgMarkup(im, x, y, w, h);
   if (ex) return '';
-  return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.55)" stroke-dasharray="7 5"/><text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle" font-size="15" fill="#fff" font-family="${CN_SANS}">${escapeXml(label)}</text></g>`;
+  const stroke = onLight ? 'rgba(42,50,121,.55)' : 'rgba(255,255,255,.55)', fillBg = onLight ? 'rgba(42,50,121,.06)' : 'rgba(255,255,255,.08)', txt = onLight ? '#2A3279' : '#fff';
+  return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fillBg}" stroke="${stroke}" stroke-dasharray="7 5"/><text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle" font-size="15" fill="${txt}" font-family="${CN_SANS}">${escapeXml(label)}</text></g>`;
 }
 
 /* Escudo + anillo de estrellas de fondo del reverso.
@@ -4968,10 +4972,10 @@ function cnLoadPreset(key) {
     .then(dataUrl => loadRasterImage(dataUrl).then(im => ({ kind: 'raster', dataUrl, naturalW: im.naturalWidth, naturalH: im.naturalHeight, originalName: P.file, isPreset: true })));
 }
 function cnRestorePreset(key) {
-  return cnLoadPreset(key).then(im => { cn.img[key] = im; cnRenderControls(); cnRender(); });
+  return cnLoadPreset(key).then(im => { if (cn.other) return; cn.img[key] = im; cnRenderControls(); cnRender(); });
 }
 function cnLoadPresets() {
-  return Promise.all(Object.keys(CN_PRESETS).map(k => cn.img[k] ? null : cnLoadPreset(k).then(im => { if (!cn.img[k]) cn.img[k] = im; }).catch(console.error)))
+  return Promise.all(Object.keys(CN_PRESETS).map(k => cn.img[k] ? null : cnLoadPreset(k).then(im => { if (!cn.img[k] && !cn.other) cn.img[k] = im; }).catch(console.error)))
     .then(() => { cnRenderControls(); cnRender(); });
 }
 
@@ -4994,6 +4998,69 @@ function cnQr(link, x, y, size) {
     }
     return { n, markup: `<path d="${d}" fill="#000"/>` };
   } catch (e) { return { error: true }; }
+}
+/* ---- Parte inferior del frente y del reverso ----
+   Modo normal (Dirección de Integración): igual que siempre.
+   Modo «otro ministerio»: queda SOLO el logo vertical «Gobierno de El Salvador» (escudo + texto).
+   - Frente: centrado; si el usuario escribe un texto, el logo pasa a la izquierda y el texto queda a la derecha con 1 separador.
+   - Reverso: centrado; cada sub-bloque con texto añade 1 separador (hasta 2). Los textos se achican solos para caber. */
+function cnFitSize(lines, font, size, weight, maxW, minSize) {
+  let sz = size;
+  while (sz > minSize && Math.max(...lines.map(l => measureLineWidth(l, font, sz, weight, 0))) > maxW) sz -= 1;
+  return sz;
+}
+function cnLines(t) { return String(t || '').toLocaleUpperCase('es').split('\n').map(l => l.trim()).filter(Boolean); }
+function cnFrontLockup(cx) {
+  const c = cn, sf = `font-family="${CN_SERIF}"`;
+  return `${cnCrest(cx, 795, 125, c.accent)}
+<text x="${cx}" y="946" text-anchor="middle" font-size="20" fill="${c.accent}" ${sf}>GOBIERNO DE</text><text x="${cx}" y="966" text-anchor="middle" font-size="20" fill="${c.accent}" ${sf}>EL SALVADOR</text>`;
+}
+function cnFrontBottom() {
+  const c = cn, sf = `font-family="${CN_SERIF}"`;
+  if (!c.other) {
+    const unit = c.unit.toLocaleUpperCase('es').split('\n'), uy = 880 - (unit.length - 1) * 22 + 12;
+    return `${cnFrontLockup(172)}
+<rect x="264" y="790" width="2" height="180" fill="${c.accent}"/>
+${cnText(unit, 278, uy, 44, `font-size="38" fill="${c.accent}" ${sf}`)}`;
+  }
+  const t = cnLines(c.o.front);
+  if (!t.length) return cnFrontLockup(324);
+  const fs = cnFitSize(t, CN_SERIF, 38, 400, 350, 22), lh = fs * 44 / 38, y0 = 880 - (t.length - 1) * lh / 2 + fs * 0.32;
+  return `${cnFrontLockup(172)}
+<rect x="264" y="790" width="2" height="180" fill="${c.accent}"/>
+${cnText(t, 278, r2(y0), r2(lh), `font-size="${fs}" fill="${c.accent}" ${sf}`)}`;
+}
+function cnBackLockup(cx) {
+  const sf = `font-family="${CN_SERIF}"`;
+  return `${cnCrest(cx, 758, 78, '#fff')}<text x="${cx}" y="858" text-anchor="middle" font-size="12" fill="#fff" ${sf}>GOBIERNO DE</text><text x="${cx}" y="871" text-anchor="middle" font-size="12" fill="#fff" ${sf}>EL SALVADOR</text>`;
+}
+function cnBackBottom(ub, unit, sub) {
+  if (!cn.other) {
+    return `${cnBackLockup(112)}
+<rect x="165" y="748" width="2" height="115" fill="#fff"/>${ub(unit, 182)}
+<rect x="404" y="748" width="2" height="115" fill="#fff"/>${ub(sub, 421)}`;
+  }
+  const blocks = [cnLines(cn.o.unit), cnLines(cn.o.sub)].filter(a => a.length);
+  if (!blocks.length) return cnBackLockup(324);
+  const sf = `font-family="${CN_SERIF}"`;
+  /* 1 solo sub-bloque: todo el conjunto (escudo + separador + texto) se centra en la tarjeta. */
+  if (blocks.length === 1) {
+    const arr = blocks[0];
+    const fs = cnFitSize(arr, CN_SERIF, 26, 400, 400, 14), lh = fs * 28 / 26, y0 = 810 - (arr.length - 1) * lh / 2;
+    const tw = Math.max(...arr.map(l => measureLineWidth(l, CN_SERIF, fs, 400, 0)));
+    const lw = Math.max(78 * CREST_VB.w / CREST_VB.h, measureLineWidth('GOBIERNO DE', CN_SERIF, 12, 400, 0), measureLineWidth('EL SALVADOR', CN_SERIF, 12, 400, 0));
+    const gap = 17, total = lw + gap + 2 + gap + tw, x0 = (CN_W - total) / 2;
+    const dx = x0 + lw + gap, tx = dx + 2 + gap;
+    return `${cnBackLockup(r2(x0 + lw / 2))}
+<rect x="${r2(dx)}" y="748" width="2" height="115" fill="#fff"/>${cnText(arr, r2(tx), r2(y0), r2(lh), `font-size="${fs}" fill="#fff" ${sf}`)}`;
+  }
+  let out = cnBackLockup(112);
+  blocks.forEach((arr, i) => {
+    const dx = i ? 404 : 165, tx = i ? 421 : 182;
+    const fs = cnFitSize(arr, CN_SERIF, 26, 400, 205, 14), lh = fs * 28 / 26, y0 = 810 - (arr.length - 1) * lh / 2;
+    out += `\n<rect x="${dx}" y="748" width="2" height="115" fill="#fff"/>${cnText(arr, tx, r2(y0), r2(lh), `font-size="${fs}" fill="#fff" ${sf}`)}`;
+  });
+  return out;
 }
 function cnFrontSvg(ex) {
   const c = cn, R = 150, cx = 324, cy = 394;
@@ -5018,10 +5085,7 @@ ${cnCrest(cx, 62, 125, '#fff')}
 <circle cx="${cx}" cy="${cy}" r="${R + 18}" fill="#fff"/>${photo}
 ${cnText(nm, cx, 604, 40, `text-anchor="middle" font-size="32" font-weight="800" fill="#111" ${ss}`)}
 <text x="${cx}" y="752" text-anchor="middle" font-size="26" font-weight="800" fill="#111" ${ss}><tspan>${escapeXml(c.idLabel)} </tspan><tspan text-decoration="underline">${escapeXml(c.idValue)}</tspan></text>
-${cnCrest(172, 795, 125, c.accent)}
-<text x="172" y="946" text-anchor="middle" font-size="20" fill="${c.accent}" ${sf}>GOBIERNO DE</text><text x="172" y="966" text-anchor="middle" font-size="20" fill="${c.accent}" ${sf}>EL SALVADOR</text>
-<rect x="264" y="790" width="2" height="180" fill="${c.accent}"/>
-${cnText(unit, 278, uy, 44, `font-size="38" fill="${c.accent}" ${sf}`)}`;
+${cnFrontBottom()}`;
 }
 
 function cnBackSvg(ex) {
@@ -5046,9 +5110,7 @@ ${cnImg('prog', 190, 448, 270, 80, ex, 'Logo proyecto')}
 ${becSvg}
 ${cnImg('logoA', 60, 625, 310, 125, ex, 'Logo izquierdo')}
 ${cnImg('logoB', 385, 620, 205, 200, ex, 'Logo derecho')}
-${cnCrest(112, 758, 78, '#fff')}<text x="112" y="858" text-anchor="middle" font-size="12" fill="#fff" ${sf}>GOBIERNO DE</text><text x="112" y="871" text-anchor="middle" font-size="12" fill="#fff" ${sf}>EL SALVADOR</text>
-<rect x="165" y="748" width="2" height="115" fill="#fff"/>${ub(unit, 182)}
-<rect x="404" y="748" width="2" height="115" fill="#fff"/>${ub(sub, 421)}
+${cnBackBottom(ub, unit, sub)}
 <text x="324" y="895" text-anchor="middle" font-size="19" font-style="italic" font-weight="800" fill="#fff" ${ss}>${escapeXml(b.emision)}</text>
 <text x="324" y="925" text-anchor="middle" font-size="18" font-style="italic" font-weight="300" fill="#fff" ${ss}>${escapeXml(b.valid)}</text>
 ${cnText(addr, 324, 960, 22, `text-anchor="middle" font-size="15" font-weight="700" fill="#fff" ${ss}`)}`;
@@ -5074,6 +5136,23 @@ async function cnExport(side, scale) {
 }
 async function cnExportBoth(scale) { await cnExport('front', scale); await cnExport('back', scale); }
 
+/* ---------- «Soy de otro ministerio o dirección» ----------
+   Limpia los logos del proyecto, izquierdo y derecho, y los textos de unidad. Se conservan el logo horizontal
+   del encabezado del frente y el logo vertical «Gobierno de El Salvador» (frente y reverso, centrado). */
+function cnSetOther(on) {
+  cn.other = !!on;
+  if (on) {
+    ['prog', 'logoA', 'logoB'].forEach(k => { cn.img[k] = null; });
+    cn.o = { front: '', unit: '', sub: '' };
+    cnRenderControls(); cnRender();
+    toast('Carnet limpiado · agrega tus logos y textos', 'ok');
+  } else {
+    cnRenderControls(); cnRender();
+    cnLoadPresets();
+    toast('Logos predeterminados restaurados', 'ok');
+  }
+}
+
 /* ---------- Imágenes ---------- */
 function cnUpload(evt, key) {
   const file = evt.target.files && evt.target.files[0]; evt.target.value = '';
@@ -5094,7 +5173,7 @@ function cnUp(key, label, has, name) {
     <label class="file-drop">${ICONS.upload} ${has ? 'Cambiar' : 'Subir'} ${key === 'photo' ? 'PNG o JPG' : 'SVG, PNG o JPG'}
       <input type="file" accept="${key === 'photo' ? '.png,.jpg,.jpeg,.webp' : '.svg,.png,.jpg,.jpeg'}" style="display:none" onchange="cnUpload(event,'${key}')"></label>
     ${has ? `<p class="hint">Cargada: <b>${escapeHtml(name || 'imagen')}</b>${cn.img[key] && cn.img[key].isPreset ? ' (predeterminado)' : ''} · <a href="#" onclick="cnRemove('${key}');return false;">Quitar</a></p>` : ''}
-    ${!has && CN_PRESETS[key] ? `<p class="hint"><a href="#" onclick="cnRestorePreset('${key}');return false;">Restaurar logo predeterminado</a></p>` : ''}</div>`;
+    ${!has && CN_PRESETS[key] && !cn.other ? `<p class="hint"><a href="#" onclick="cnRestorePreset('${key}');return false;">Restaurar logo predeterminado</a></p>` : ''}</div>`;
 }
 function cnIn(label, expr, val, multi) {
   const ev = `oninput="${expr}=this.value;cnRender()"`;
@@ -5105,10 +5184,16 @@ function cnRng(label, key, min, max) {
 }
 function cnRenderControls() {
   const b = 'cn.back';
+  const modeBody = cn.other
+    ? `<p class="hint" style="margin-bottom:10px;"><b>Modo activo:</b> los logos de Dirección de Integración y del proyecto fueron limpiados. Sube tus logos en <b>Reverso — imágenes</b> y escribe tus textos en <b>Frente — datos</b> y <b>Reverso — textos</b>. Se mantienen el logo horizontal del frente y el logo vertical «Gobierno de El Salvador».</p>
+       <button class="btn" style="width:100%;justify-content:center;" onclick="cnSetOther(false)">Restaurar logos predeterminados</button>`
+    : `<p class="hint" style="margin-bottom:10px;">Limpia los logos y textos de unidad del carnet. Solo quedan el logo horizontal «Gobierno de El Salvador» (arriba del frente) y el logo vertical «Gobierno de El Salvador» (abajo, centrado en ambas caras).</p>
+       <button class="btn primary" style="width:100%;justify-content:center;" onclick="cnSetOther(true)">Soy de otro ministerio o dirección</button>`;
   document.getElementById('cnRight').innerHTML =
-    cardWrap('cnFront', ICONS.shield, 'Frente — datos', cnIn('Nombre (se ajusta solo en varias líneas)', 'cn.name', cn.name, 2) + cnIn('Etiqueta del ID', 'cn.idLabel', cn.idLabel) + cnIn('Número de ID', 'cn.idValue', cn.idValue) + cnIn('Unidad / dirección (Enter = nueva línea)', 'cn.unit', cn.unit, 2)) +
+    cardWrap('cnMode', ICONS.shield, 'Institución', modeBody) +
+    cardWrap('cnFront', ICONS.shield, 'Frente — datos', cnIn('Nombre (se ajusta solo en varias líneas)', 'cn.name', cn.name, 2) + cnIn('Etiqueta del ID', 'cn.idLabel', cn.idLabel) + cnIn('Número de ID', 'cn.idValue', cn.idValue) + (cn.other ? cnIn('Texto a la derecha del separador (opcional · Enter = nueva línea)', 'cn.o.front', cn.o.front, 2) + '<p class="hint">Vacío = el logo «Gobierno de El Salvador» queda centrado. Con texto, el logo pasa a la izquierda y aparece 1 separador.</p>' : cnIn('Unidad / dirección (Enter = nueva línea)', 'cn.unit', cn.unit, 2))) +
     cardWrap('cnPhoto', ICONS.image, 'Foto', cnUp('photo', 'Foto de la persona', !!cn.photo, cn.photo && cn.photo.originalName) + cnRng('Zoom %', 'zoom', 100, 300) + cnRng('Mover horizontal', 'px', -200, 200) + cnRng('Mover vertical', 'py', -200, 200)) +
-    cardWrap('cnBack', ICONS.layers, 'Reverso — textos', cnIn('Línea 1 (contacto)', b + '.c1', cn.back.c1) + cnIn('Línea 2 (correo)', b + '.c2', cn.back.c2) + cnIn('Enlace del QR (Documentos)', b + '.qrLink', cn.back.qrLink) + '<p class="hint" id="cnQrHint"></p>' + cnIn('Texto bajo el QR', b + '.qrLabel', cn.back.qrLabel) + cnIn('Etiqueta "Becado por"', b + '.becado', cn.back.becado) + cnIn('Institución', b + '.becadoVal', cn.back.becadoVal) + cnIn('Subunidad (Enter = nueva línea)', 'cn.subUnit', cn.subUnit, 2) + cnIn('Fecha de emisión', b + '.emision', cn.back.emision) + cnIn('Validez', b + '.valid', cn.back.valid) + cnIn('Dirección', b + '.addr', cn.back.addr, 3)) +
+    cardWrap('cnBack', ICONS.layers, 'Reverso — textos', cnIn('Línea 1 (contacto)', b + '.c1', cn.back.c1) + cnIn('Línea 2 (correo)', b + '.c2', cn.back.c2) + cnIn('Enlace del QR (Documentos)', b + '.qrLink', cn.back.qrLink) + '<p class="hint" id="cnQrHint"></p>' + cnIn('Texto bajo el QR', b + '.qrLabel', cn.back.qrLabel) + cnIn('Etiqueta "Becado por"', b + '.becado', cn.back.becado) + cnIn('Institución', b + '.becadoVal', cn.back.becadoVal) + (cn.other ? cnIn('Sub-bloque 1 del reverso (opcional)', 'cn.o.unit', cn.o.unit, 2) + cnIn('Sub-bloque 2 del reverso (opcional)', 'cn.o.sub', cn.o.sub, 2) + '<p class="hint">Cada sub-bloque con texto agrega 1 separador junto al escudo. Vacíos = el escudo queda centrado.</p>' : cnIn('Subunidad (Enter = nueva línea)', 'cn.subUnit', cn.subUnit, 2)) + cnIn('Fecha de emisión', b + '.emision', cn.back.emision) + cnIn('Validez', b + '.valid', cn.back.valid) + cnIn('Dirección', b + '.addr', cn.back.addr, 3)) +
     cardWrap('cnImgs', ICONS.upload, 'Reverso — imágenes', Object.keys(CN_IMG_LABELS).map(k => cnUp(k, CN_IMG_LABELS[k], !!cn.img[k], cn.img[k] && cn.img[k].originalName)).join('') + `<p class="hint">El QR se genera solo desde el enlace de «Reverso — textos». La imagen de QR subida solo se usa si el enlace está vacío. Sube también los logos. Los recuadros punteados no aparecen al exportar.</p>`) +
     cardWrap('cnColor', ICONS.droplet, 'Colores', `<div class="field"><label class="flabel">Azul del encabezado (frente)</label><input type="color" value="${cn.headerColor}" oninput="cn.headerColor=this.value;cnRender()"></div>
       <div class="field"><label class="flabel">Color de acento (logo y unidad, frente)</label><input type="color" value="${cn.accent}" oninput="cn.accent=this.value;cnRender()"></div>
