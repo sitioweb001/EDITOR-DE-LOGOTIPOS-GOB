@@ -588,6 +588,7 @@ input[type="color"]::-webkit-color-swatch{border-radius:6px;border:none;}
 }
 @media (max-width:980px){ .anim-canvas-wrap{min-height:44vh;} }
 #animCanvas{max-width:100%;max-height:100%;box-shadow:0 4px 26px rgba(0,0,0,.28);display:block;}
+#animCanvas.transp{background-color:#fff;background-image:linear-gradient(45deg,#cfd4dc 25%,transparent 25%,transparent 75%,#cfd4dc 75%),linear-gradient(45deg,#cfd4dc 25%,transparent 25%,transparent 75%,#cfd4dc 75%);background-size:24px 24px;background-position:0 0,12px 12px;}
 .anim-toolbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--panel);border-top:1px solid var(--panel-border);}
 .anim-play-btn{
   width:38px;height:38px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;
@@ -1011,7 +1012,7 @@ const PRESETS = [
 function makeDefaultBlock(id, text) {
   return {
     id,
-    active: id === 2,
+    active: false,   // por defecto todos los bloques inician desactivados y vacíos
     text,
     font: FONT_OPTIONS[0].value,
     size: 24,
@@ -1058,9 +1059,9 @@ function defaultState() {
       captionUppercase: true,
     },
     blocks: [
-      makeDefaultBlock(2, 'MINISTERIO DE\nEDUCACIÓN'),
-      makeDefaultBlock(3, 'DIRECCIÓN DE\nTECNOLOGÍA'),
-      makeDefaultBlock(4, 'UNIDAD DE\nINFORMÁTICA'),
+      makeDefaultBlock(2, ''),
+      makeDefaultBlock(3, ''),
+      makeDefaultBlock(4, ''),
     ],
   };
 }
@@ -3789,7 +3790,7 @@ function wmLoadProject() {
 
 const anim = {
   mode: 'intro',        // 'intro' | 'outro'
-  bgType: 'color',       // 'color' | 'image'
+  bgType: 'color',       // 'color' | 'image' | 'transparent'
   bgColor: '#12151c',
   bgImage: null,          // { dataUrl, naturalW, naturalH }
   crestColor: '#FFFFFF',  // color del escudo durante la revelación (fase 1 del intro)
@@ -3955,7 +3956,9 @@ function animDrawFx(ctx, img, W, H, frac, q, ratio, effect, isIn) {
 function animDrawFrame(ctx, tSec) {
   const W = anim.resW, H = anim.resH;
   ctx.clearRect(0, 0, W, H);
-  if (anim.bgType === 'image' && animAssets.bgImg) animDrawCover(ctx, animAssets.bgImg, W, H);
+  if (ctx.canvas && ctx.canvas.classList) ctx.canvas.classList.toggle('transp', anim.bgType === 'transparent');
+  if (anim.bgType === 'transparent') { /* sin relleno: el cuadro queda con canal alfa */ }
+  else if (anim.bgType === 'image' && animAssets.bgImg) animDrawCover(ctx, animAssets.bgImg, W, H);
   else { ctx.fillStyle = anim.bgColor; ctx.fillRect(0, 0, W, H); }
 
   const dur = Math.max(0.5, anim.durationSec);
@@ -4209,8 +4212,11 @@ function animCardBackground() {
       <div class="seg">
         <button class="${anim.bgType==='color'?'active':''}" data-anim-bgtype="color">Color</button>
         <button class="${anim.bgType==='image'?'active':''}" data-anim-bgtype="image">Imagen</button>
+        <button class="${anim.bgType==='transparent'?'active':''}" data-anim-bgtype="transparent">Transparente</button>
       </div>
     </div>
+    ${anim.bgType==='transparent' ? `
+    <p class="hint">Sin fondo: el video se exporta con canal de transparencia (alfa) en formato .webm, para colocarlo sobre otro video o diseño. En la vista previa se muestra un cuadriculado.</p>` : ''}
     ${anim.bgType==='color' ? `
     <div class="field">
       <label class="flabel">Colores</label>
@@ -4408,7 +4414,9 @@ async function animExportVideo() {
     canvas.height = anim.resH;
     const ctx = canvas.getContext('2d');
 
-    let mimeType = 'video/webm;codecs=vp9';
+    // Con fondo transparente se prefiere VP8, que conserva el canal alfa de forma más fiable.
+    let mimeType = anim.bgType === 'transparent' ? 'video/webm;codecs=vp8' : 'video/webm;codecs=vp9';
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9';
     if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
     if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
 
