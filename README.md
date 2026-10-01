@@ -39,6 +39,7 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 | **Insertar Marca de Agua** | Coloca el escudo, el logo del ministerio o texto (*Documento Oficial*, *Borrador*, *Confidencial*) sobre un PDF | PDF con marca de agua |
 | **Crear Logotipo** | Compone un logotipo horizontal o vertical: escudo + hasta 3 bloques (ministerio, dirección, unidad) | Logotipo institucional |
 | **Crear Animación** | Genera un video de intro u outro estilo Cadena Nacional | Archivo de video real |
+| **Crear Carnet** | Diseña el carnet institucional (frente y reverso) con foto, nombre, ID, QR y logos | PNG de alta resolución (2×) |
 
 ---
 
@@ -120,6 +121,37 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 
 ---
 
+## 🪪 4. Crear Carnet
+
+Carnet institucional de 648 × 1020 px (frente y reverso), exportable a **1296 × 2040 px** (2×).
+
+| Módulo | Opciones |
+|---|---|
+| Frente | Nombre (se ajusta solo en varias líneas), etiqueta y número de ID, unidad |
+| Foto | Carga PNG/JPG con zoom y desplazamiento dentro del círculo |
+| Reverso — textos | Contacto, correo, **enlace del QR (Documentos)**, etiqueta bajo el QR, institución becaria, fechas y dirección |
+| Reverso — imágenes | QR propio, logo izquierdo (institución) y logos del proyecto / derecho |
+| Colores | Encabezado, acento y fondo del reverso; escudo de fondo activable |
+| Exportar | Frente y reverso juntos o por separado |
+
+**Logos preestablecidos.** El *logo del proyecto* (Proyecto Continuidad) y el *logo derecho* (Florecimiento Salvadoreño) son fijos y se cargan solos desde dos archivos que viven **al lado de `index.html`**:
+
+| Archivo | Se usa como |
+|---|---|
+| `logoproyecto.png` | Logo del proyecto (centro del reverso) |
+| `logo_derecho.png` | Logo derecho del reverso |
+
+- Deben ser PNG con **fondo transparente** y texto en blanco, pensados para el fondo azul del reverso.
+- Para mejorar la calidad, reemplázalos por versiones de mayor resolución **con el mismo nombre y la misma proporción**; no hay que tocar el código.
+- Si abres `index.html` con doble clic (`file://`) el navegador no deja leer archivos externos; en ese caso la app usa una copia ligera incrustada. Para ver los archivos externos, usa GitHub Pages o un servidor local.
+- Cada logo se puede cambiar o quitar desde el panel *Reverso — imágenes*, y hay un enlace para **restaurar el predeterminado**.
+
+**QR automático (Documentos).** En *Reverso — textos* pega el enlace (por ejemplo, la carpeta de Drive del becario) y el QR se genera solo, en vectorial y listo para exportar. Si escribes un dominio sin `https://`, la app lo agrega. El generador va incrustado en `index.html`, así que funciona sin internet. Si el campo está vacío, se usa la imagen de QR subida (si hay) o un recuadro de marcador.
+
+**Escudo de fondo del reverso.** Usa el escudo con su anillo de estrellas, con la misma posición y proporción de la plantilla oficial (centrado a la derecha y recortado por el borde de la tarjeta).
+
+---
+
 ## ⚙️ Funcionamiento
 
 ```
@@ -132,7 +164,7 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 | Característica | Descripción |
 |---|---|
 | 🖥️ 100 % en el navegador | No hay servidor; los archivos que subes no salen de tu equipo |
-| 📦 Un solo archivo | Todo el código vive en `index.html` |
+| 📦 Un solo archivo de código | Todo el código vive en `index.html`; los logos del carnet son archivos PNG aparte |
 | 🗂️ Módulos plegados | Todos los paneles inician cerrados para una interfaz limpia |
 | 💾 Guardar / Cargar proyecto | Guarda tu configuración en el navegador y retómala después |
 | ♻️ Restablecer | Vuelve a los valores iniciales |
@@ -146,6 +178,8 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 ```
 📦 repositorio
  ┣ 📄 index.html            ← aplicación completa
+ ┣ 🖼️ logoproyecto.png      ← logo del proyecto (carnet, reverso)
+ ┣ 🖼️ logo_derecho.png      ← logo derecho (carnet, reverso)
  ┣ 🖼️ favicon.svg           ← ícono de la pestaña
  ┣ 🖼️ favicon-32.png        ← ícono de la pestaña (respaldo)
  ┣ 🖼️ apple-touch-icon.png  ← ícono en celulares
@@ -155,6 +189,19 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 
 ---
 
+## 🚀 Cómo usarlo
+
+**Opción A: en línea con GitHub Pages**
+
+1. Sube todos los archivos a tu repositorio (incluidos `logoproyecto.png` y `logo_derecho.png`, en la misma carpeta que `index.html`).
+2. Ve a **Settings → Pages**.
+3. En *Source* elige la rama `main` y la carpeta `/ (root)`.
+4. Abre `https://TU-USUARIO.github.io/TU-REPOSITORIO/`.
+
+**Opción B: local**
+
+1. Descarga el repositorio.
+2. Abre `index.html` en tu navegador. (Para que el carnet use los logos externos de mayor calidad, sírvelo con un servidor local, por ejemplo `python -m http.server`, y abre `http://localhost:8000`.)
 
 ---
 
@@ -169,13 +216,13 @@ Al compartir el enlace aparecen el escudo, el título **Editor de Marca Instituc
 ## ⚠️ Uso y aviso
 
 ```
-                              ┌──────────────────────────────────────────────────────────────┐
-                              │  Uso exclusivo del Gobierno de El Salvador (2019–2026).      │
-                              │                                                              │
-                              │  La aplicación del emblema es obligatoria en los documentos  │
-                              │  oficiales; su composición, proporciones y colores no deben  │
-                              │  alterarse.                                                  │
-                              └──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Uso exclusivo del Gobierno de El Salvador (2019–2026).      │
+│                                                              │
+│  La aplicación del emblema es obligatoria en los documentos  │
+│  oficiales; su composición, proporciones y colores no deben  │
+│  alterarse.                                                  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 <div align="center">
