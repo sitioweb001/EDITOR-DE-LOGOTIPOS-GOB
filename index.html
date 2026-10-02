@@ -3986,7 +3986,9 @@ function wmLoadProject() {
 
 const anim = {
   mode: 'intro',        // 'intro' | 'outro'
-  bgType: 'color',       // 'color' | 'image' | 'transparent'
+  bgType: 'color',       // 'color' | 'image' | 'transparent' | 'chroma'
+  chromaColor: '#00FF00', // fondo de croma (pantalla verde) para quitar el fondo en CapCut / editores sin alfa
+  format: 'auto',        // 'auto' (MP4 si el navegador puede) | 'webm'
   bgColor: '#12151c',
   bgImage: null,          // { dataUrl, naturalW, naturalH }
   crestColor: '#FFFFFF',  // color del escudo durante la revelación (fase 1 del intro)
@@ -4219,6 +4221,7 @@ function animDrawFrame(ctx, tSec) {
   ctx.clearRect(0, 0, W, H);
   if (ctx.canvas && ctx.canvas.classList) ctx.canvas.classList.toggle('transp', anim.bgType === 'transparent');
   if (anim.bgType === 'transparent') { /* sin relleno: el cuadro queda con canal alfa */ }
+  else if (anim.bgType === 'chroma') { ctx.fillStyle = anim.chromaColor; ctx.fillRect(0, 0, W, H); }
   else if (anim.bgType === 'image' && animAssets.bgImg) animDrawCover(ctx, animAssets.bgImg, W, H);
   else { ctx.fillStyle = anim.bgColor; ctx.fillRect(0, 0, W, H); }
 
@@ -4594,10 +4597,18 @@ function animCardBackground() {
         <button class="${anim.bgType==='color'?'active':''}" data-anim-bgtype="color">Color</button>
         <button class="${anim.bgType==='image'?'active':''}" data-anim-bgtype="image">Imagen</button>
         <button class="${anim.bgType==='transparent'?'active':''}" data-anim-bgtype="transparent">Transparente</button>
+        <button class="${anim.bgType==='chroma'?'active':''}" data-anim-bgtype="chroma">Croma</button>
       </div>
     </div>
     ${anim.bgType==='transparent' ? `
-    <p class="hint">Sin fondo: el video se exporta con canal de transparencia (alfa) en formato .webm, para colocarlo sobre otro video o diseño. En la vista previa se muestra un cuadriculado.</p>` : ''}
+    <p class="hint">Sin fondo: el video se exporta como .webm con canal de transparencia (alfa), para editores que lo soportan (por ejemplo DaVinci Resolve o After Effects). En la vista previa se muestra un cuadriculado.</p>
+    <p class="hint" style="color:#b45309;"><b>Aviso:</b> CapCut y el editor de Samsung ignoran la transparencia del .webm y muestran el fondo <b>negro</b>. Para esos editores usa <b>Croma</b>.</p>` : ''}
+    ${anim.bgType==='chroma' ? `
+    <div class="field">
+      <label class="flabel">Color del croma</label>
+      <div class="swatches">${[{hex:'#00FF00',label:'Verde (recomendado)'},{hex:'#0000FF',label:'Azul'},{hex:'#FF00FF',label:'Magenta'}].map(c => `<div class="swatch ${anim.chromaColor.toUpperCase()===c.hex?'active':''}" style="background:${c.hex};" title="${c.label}" data-anim-chroma="${c.hex}"></div>`).join('')}</div>
+    </div>
+    <p class="hint">Exporta el logo sobre un color liso para quitarlo después en el editor. <b>En CapCut:</b> coloca el video como superposición, selecciónalo y elige <b>Croma</b> (Chroma key); toca el cuentagotas sobre el fondo y sube <b>Intensidad</b> hasta que desaparezca. Usa verde salvo que tu logo lleve verde.</p>` : ''}
     ${anim.bgType==='color' ? `
     <div class="field">
       <label class="flabel">Colores</label>
@@ -4609,7 +4620,7 @@ function animCardBackground() {
         <input type="color" value="${anim.bgColor}" data-anim-prop="bgColor">
         <input type="text" value="${anim.bgColor}" style="width:110px" data-anim-prop="bgColorText">
       </div>
-    </div>` : `
+    </div>` : anim.bgType !== 'image' ? '' : `
     <div class="field">
       <label class="flabel">Imagen o foto de fondo</label>
       <label class="file-drop">
@@ -4650,13 +4661,29 @@ function animCardTiming() {
   `);
 }
 
+function animMp4Mime() {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return null;
+  return ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1.4D401E', 'video/mp4;codecs=avc1'].find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || null;
+}
+function animUseMp4() { return anim.bgType !== 'transparent' && anim.format !== 'webm' && !!animMp4Mime(); }
 function animCardExport() {
+  const mp4 = !!animMp4Mime(), useMp4 = animUseMp4();
   return cardWrap('animExport', ICONS.download, 'Exportar', `
-    <button class="btn primary" style="width:100%;justify-content:center;" id="animExportBtn">${ICONS.download} Exportar video (.webm)</button>
+    ${mp4 ? `<div class="field">
+      <label class="flabel">Formato</label>
+      <div class="seg">
+        <button class="${useMp4?'active':''}" data-anim-format="auto" ${anim.bgType==='transparent'?'disabled style="opacity:.5;cursor:not-allowed;"':''}>MP4 (CapCut / Samsung)</button>
+        <button class="${!useMp4?'active':''}" data-anim-format="webm">WebM</button>
+      </div>
+    </div>` : ''}
+    <button class="btn primary" style="width:100%;justify-content:center;" id="animExportBtn">${ICONS.download} Exportar video (.${useMp4?'mp4':'webm'})</button>
     <div class="anim-export-progress" id="animExportProgressWrap" style="display:none;">
       <div class="anim-export-progress-fill" id="animExportProgressFill"></div>
     </div>
-    <p class="hint">Se graba en tiempo real desde la vista previa (dura lo mismo que el video, p. ej. 6 segundos = 6 segundos para exportar). El archivo es <b>.webm</b>, el formato de video nativo de los navegadores — se reproduce en Chrome, Firefox, VLC y la mayoría de editores; para subirlo a plataformas que exijan MP4, puede convertirse con cualquier conversor gratuito en línea o con FFmpeg.</p>
+    <p class="hint">Se graba en tiempo real desde la vista previa (dura lo mismo que el video, p. ej. 6 segundos = 6 segundos para exportar).</p>
+    ${useMp4 ? `<p class="hint"><b>MP4</b> se abre en CapCut, el editor de Samsung y casi cualquier celular. El MP4 no guarda transparencia: para quitar el fondo usa <b>Croma</b>.</p>`
+      : anim.bgType==='transparent' ? `<p class="hint">Con fondo transparente solo se puede exportar <b>.webm</b> (el MP4 no admite transparencia).</p>`
+      : `<p class="hint">Tu navegador no ofrece MP4 aquí, se exporta <b>.webm</b>. Para CapCut o Samsung, usa un Chrome actualizado (MP4) o convierte el .webm con cualquier conversor gratuito.</p>`}
     <p class="hint">Funciona en Chrome, Firefox y Edge. En Safari la grabación de video puede no estar disponible.</p>
   `);
 }
@@ -4684,6 +4711,16 @@ function animBindControlEvents() {
     animAssetsDirty = true;
     renderAnimControls();
     animPrepareAssets().then(animRender);
+  }));
+
+  right.querySelectorAll('[data-anim-chroma]').forEach(el => el.addEventListener('click', () => {
+    anim.chromaColor = el.dataset.animChroma;
+    renderAnimControls();
+    animRender();
+  }));
+  right.querySelectorAll('[data-anim-format]').forEach(el => el.addEventListener('click', () => {
+    anim.format = el.dataset.animFormat;
+    renderAnimControls();
   }));
 
   right.querySelectorAll('[data-anim-bg-preset]').forEach(el => el.addEventListener('click', () => {
@@ -4796,10 +4833,12 @@ async function animExportVideo() {
     const ctx = canvas.getContext('2d');
 
     // Con fondo transparente se prefiere VP8, que conserva el canal alfa de forma más fiable.
-    let mimeType = anim.bgType === 'transparent' ? 'video/webm;codecs=vp8' : 'video/webm;codecs=vp9';
+    const asMp4 = animUseMp4();
+    let mimeType = asMp4 ? animMp4Mime() : (anim.bgType === 'transparent' ? 'video/webm;codecs=vp8' : 'video/webm;codecs=vp9');
     if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9';
     if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
     if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    const isMp4 = mimeType.startsWith('video/mp4'), ext = isMp4 ? 'mp4' : 'webm';
 
     const stream = canvas.captureStream(anim.fps);
     const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 10000000 });
@@ -4818,11 +4857,11 @@ async function animExportVideo() {
     recorder.stop();
     await stopped;
 
-    const blob = new Blob(chunks, { type: 'video/webm' });
+    const blob = new Blob(chunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
     if (blob.size < 1000) { toast('La grabación salió vacía; intenta de nuevo (revisa que el navegador permita grabar el lienzo)', 'err'); }
     else {
-      downloadBlob(blob, `animacion-${anim.mode}-gobierno-el-salvador.webm`);
-      toast('Video exportado (.webm)', 'ok');
+      downloadBlob(blob, `animacion-${anim.mode}-gobierno-el-salvador${anim.bgType === 'chroma' ? '-croma' : ''}.${ext}`);
+      toast(`Video exportado (.${ext})`, 'ok');
     }
   } catch (e) {
     console.error(e);
