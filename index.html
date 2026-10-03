@@ -9,6 +9,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#001A70">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Marca GOES">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Editor de Marca Institucional — Gobierno de El Salvador">
 <meta property="og:description" content="Marca de agua para PDF, creación de logotipos y animaciones con el escudo institucional (2019–2026).">
@@ -93,7 +97,10 @@ html[data-theme="dark"] #view-home{
 .home-theme-toggle{position:absolute;top:20px;right:20px;}
 .home-crest{width:150px;margin-bottom:6px;filter:drop-shadow(0 6px 18px rgba(20,25,40,.12));}
 .home-title{font-size:26px;font-weight:800;letter-spacing:.2px;margin:18px 0 2px;text-align:center;}
-.home-subtitle{font-size:13.5px;color:var(--text-dim);text-align:center;margin:0 0 40px;}
+.home-subtitle{font-size:13.5px;color:var(--text-dim);text-align:center;margin:0 0 16px;}
+.home-manual-btn{display:inline-flex;align-items:center;gap:8px;margin:0 0 34px;padding:9px 18px;border-radius:999px;border:1px solid var(--panel-border);background:var(--panel);color:var(--text);font-size:13px;font-weight:700;text-decoration:none;box-shadow:var(--shadow);transition:transform .15s,border-color .15s,box-shadow .15s;}
+.home-manual-btn:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 22px rgba(20,25,40,.12);}
+.home-manual-btn svg{width:17px;height:17px;flex:none;}
 .home-cards{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;max-width:820px;}
 .home-card{
   width:340px; background:var(--panel); border:1px solid var(--panel-border); border-radius:18px;
@@ -631,6 +638,10 @@ input[type="color"]::-webkit-color-swatch{border-radius:6px;border:none;}
   <div class="home-crest" id="homeCrest"></div>
   <h1 class="home-title">Editor de Marca Institucional</h1>
   <p class="home-subtitle">Gobierno de El Salvador · 2019–2026</p>
+  <a class="home-manual-btn" id="goManual" href="MANUAL%20DE%20USO%20DE%20MARCA%20GOB%202019-2026.pdf" target="_blank" rel="noopener" title="Abrir el Manual de Uso de Marca en una pestaña nueva">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    Manual de Uso de Marca 2019–2026
+  </a>
 
   <div class="home-cards">
     <div class="home-card" id="goWatermark">
@@ -1052,6 +1063,7 @@ function defaultState() {
                                 // salvo que el usuario active "recolorear también el escudo")
     customColor: '#001A70',
     recolorInstitutional: false,
+    instOwnColor: { enabled: false, color: '#001A70' },   // color propio del bloque institucional (escudo + "Gobierno de El Salvador"); tiene prioridad sobre el resto
     instScale: 1,
     logoHeight: 120,          // altura base de la composición (px lógicos)
     globalScale: 1,
@@ -1090,6 +1102,7 @@ function ensureStateShape(s) {
   else s.inst = Object.assign({}, d.inst, s.inst);
   if (!s.divider) s.divider = d.divider;
   s.subColor = Object.assign({}, d.subColor, s.subColor || {});
+  s.instOwnColor = Object.assign({}, d.instOwnColor, s.instOwnColor || {});
   if (!Array.isArray(s.blocks)) s.blocks = d.blocks;
   return s;
 }
@@ -1147,6 +1160,12 @@ function resolveGlobalColor() {
 }
 /* Alcance del color de "sub bloques": devuelve el color a usar o null si no aplica.
    scope: 'text' | 'inst' | 'dividers' */
+/* Color final del bloque institucional: su color propio > color común de sub bloques > global (si se activó) > azul oficial. */
+function instColorResolved(gColor) {
+  const o = state.instOwnColor;
+  if (o && o.enabled && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(o.color)) return o.color;
+  return subColorFor('inst') || (state.recolorInstitutional ? (gColor || resolveGlobalColor()) : '#001A70');
+}
 function subColorFor(scope) {
   const sc = state.subColor;
   if (!sc || !sc.enabled) return null;
@@ -1179,7 +1198,7 @@ function computeLayout() {
   const divHeight = Math.min(divHeightRaw, compH * 0.98);
 
   const inst = state.inst;
-  const instColor = subColorFor('inst') || (state.recolorInstitutional ? gColor : '#001A70');
+  const instColor = instColorResolved(gColor);
   const useCustom = !!(inst.useCustomImage && inst.customImage);
 
   const showCaption = inst.showCaption && inst.caption && inst.caption.trim().length > 0;
@@ -1583,7 +1602,7 @@ function renderBrandGuideCard() {
 
 /* ---------- Bloque institucional ---------- */
 function defaultCrestPreviewSvg() {
-  return `<svg viewBox="${CREST_VB.minX} ${CREST_VB.minY} ${CREST_VB.w} ${CREST_VB.h}" style="height:100%"><g fill="${subColorFor('inst') || (state.recolorInstitutional ? resolveGlobalColor() : '#001A70')}">${ESCUDO_PATHS}</g></svg>`;
+  return `<svg viewBox="${CREST_VB.minX} ${CREST_VB.minY} ${CREST_VB.w} ${CREST_VB.h}" style="height:100%"><g fill="${instColorResolved()}">${ESCUDO_PATHS}</g></svg>`;
 }
 function customImagePreviewSvg() {
   const img = state.inst.customImage;
@@ -2070,8 +2089,52 @@ function renderColorCard() {
       </div>
       <p class="hint">El selector nativo abre la paleta completa (todo el espectro), no solo los tonos predefinidos. Para el escudo y elementos oficiales protegidos, usa solo las combinaciones autorizadas del manual.</p>
     </div>
+    ${instColorEditorHtml()}
     <p class="hint">El fondo del logotipo siempre permanece 100% transparente, sin importar el color elegido para el texto, las líneas y (opcionalmente) el escudo.</p>
   `);
+}
+/* ---------- Editor de color del bloque institucional (se muestra en "Color" y en "Color de sub bloques") ---------- */
+let instColorEditorOpen = false;
+function instColorEditorHtml() {
+  const o = state.instOwnColor;
+  const cur = instColorResolved();
+  const swatches = COLOR_PRESETS.concat(BRAND.neutrals.map(n => ({ hex: n.hex, label: n.label }))).map(c => `
+    <div class="swatch ${o.enabled && o.color.toUpperCase()===c.hex.toUpperCase()?'active':''}" style="background:${c.hex};${c.hex.toUpperCase()==='#FFFFFF'?'box-shadow:inset 0 0 0 1px #d0d5dd;':''}"
+      title="${escapeHtml(c.label)} (${c.hex})" onclick="setInstOwnColor('${c.hex}', true)"></div>`).join('');
+  const off = o.enabled ? '' : 'opacity:.5;';
+  return `
+    <details class="field" ${instColorEditorOpen ? 'open' : ''} ontoggle="instColorEditorOpen=this.open" style="border:1px solid var(--panel-border);border-radius:8px;padding:8px 10px;">
+      <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:600;">
+        <span style="width:16px;height:16px;border-radius:4px;background:${cur};box-shadow:inset 0 0 0 1px #d0d5dd;display:inline-block;"></span>
+        Color del bloque institucional
+      </summary>
+      <p class="hint" style="margin:6px 0;">Escudo + "Gobierno de El Salvador". Con este color activo tiene prioridad sobre el color global y el color común de sub bloques.</p>
+      <label class="check-row">
+        <input type="checkbox" ${o.enabled?'checked':''} onchange="toggleInstOwnColor(this.checked)">
+        Usar un color propio para el bloque institucional
+      </label>
+      <div style="${off}">
+        <div class="swatches" style="margin:8px 0;">${swatches}</div>
+        <div class="color-custom-row">
+          <input type="color" id="instOwnPicker" value="${/^#[0-9a-f]{6}$/i.test(o.color)?o.color:'#001A70'}" oninput="setInstOwnColor(this.value, false)" onchange="renderControls()">
+          <input type="text" id="instOwnText" value="${o.color}" style="width:110px" oninput="setInstOwnColor(this.value, false)" onchange="renderControls()">
+          <button class="btn" type="button" onclick="setInstOwnColor('#001A70', true)" title="Volver al azul oficial">Azul oficial</button>
+        </div>
+      </div>
+    </details>`;
+}
+function toggleInstOwnColor(on) { state.instOwnColor.enabled = on; renderControls(); renderPreview(); }
+function setInstOwnColor(hex, rerender) {
+  state.instOwnColor.color = hex;
+  if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) return;
+  state.instOwnColor.enabled = true;
+  if (rerender) renderControls();
+  else {   // sin reconstruir el panel mientras se arrastra el selector
+    const pk = document.getElementById('instOwnPicker'), tx = document.getElementById('instOwnText');
+    if (pk && /^#[0-9a-f]{6}$/i.test(hex) && pk.value.toLowerCase() !== hex.toLowerCase()) pk.value = hex;
+    if (tx && tx.value !== hex) tx.value = hex;
+  }
+  renderPreview();
 }
 function setColorMode(mode) { state.colorMode = mode; renderControls(); renderPreview(); }
 function openCustomColorPicker() {
@@ -2124,6 +2187,7 @@ function renderSubColorCard() {
         <input type="text" value="${sc.color}" style="width:110px" oninput="setSubColor(this.value)">
       </div>
     </div>
+    ${instColorEditorHtml()}
     <p class="hint">Mientras esté activo, este color tiene prioridad sobre el color global, el color propio de cada bloque y el color de separadores (según el alcance elegido). Los logos subidos como imagen no se recolorean.</p>
   `);
 }
@@ -3998,13 +4062,15 @@ const anim = {
   fxOut: 'fade',           // efecto de SALIDA (desaparecer)
   fxIntensity: 1,          // multiplicador de distancia / zoom / difuminado
   durationSec: 6,
+  seq: 'auto',            // 'auto' (según Intro/Outro) | 'crestLogoCrest' (escudo → logo → escudo) | 'logoOnly' (solo el logo editado)
+  introSec: 5, holdSec: 2, outroSec: 5,   // modo Intro + Outro: duración de cada tramo (segundos)
   resW: 1920, resH: 1080,
   fps: 30,
   // Medidas SOLO para el video (no modifican "Crear Logotipo"). Porcentajes: 100 = igual que en Crear Logotipo.
   measures: { inst: 100, gap: 100, blocks: { 2: 100, 3: 100, 4: 100 }, fullFrac: 55, crestFrac: 32 },
 };
 
-let animAssets = { crestImg: null, fullImg: null, fullRatio: 1, bgImg: null };
+let animAssets = { crestImg: null, fullImg: null, fullRatio: 1, bgImg: null, split: null };
 let animPlaying = false;
 let animPlayStart = 0;
 let animCurTime = 0;
@@ -4013,6 +4079,9 @@ let animExporting = false;
 let animAssetsDirty = true;
 
 /* ---------- Easing ---------- */
+function animSyncBothDuration() {
+  if (anim.mode === 'both' && anim.seq === 'auto') anim.durationSec = Math.round((anim.introSec + anim.holdSec + anim.outroSec) * 10) / 10;
+}
 function animEaseOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 function animEaseInCubic(t) { return t * t * t; }
 function animEaseInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
@@ -4115,7 +4184,10 @@ async function animGetFullLogoImage() {
   const targetH = Math.max(1, Math.round(targetW * (comp.height / comp.width)));
   const svgStr = comp.svg.replace(/width="[^"]*" height="[^"]*"/, `width="${targetW}" height="${targetH}"`);
   const img = await loadSvgImage(svgStr);
-  return { img, ratio: comp.width / comp.height };
+  // Posición del primer separador (fracciones del logo) para el efecto "Desde el divisor".
+  const d = comp.layout && comp.layout.dividers && comp.layout.dividers[0];
+  const split = d ? { x0: d.x / comp.width, x1: (d.x + d.w) / comp.width, y0: d.y / comp.height, y1: (d.y + d.h) / comp.height } : null;
+  return { img, ratio: comp.width / comp.height, split };
 }
 
 async function animPrepareAssets() {
@@ -4123,6 +4195,7 @@ async function animPrepareAssets() {
   const full = await animGetFullLogoImage();
   animAssets.fullImg = full.img;
   animAssets.fullRatio = full.ratio;
+  animAssets.split = full.split;
   if (anim.bgType === 'image' && anim.bgImage) {
     animAssets.bgImg = await loadRasterImage(anim.bgImage.dataUrl);
   } else {
@@ -4167,13 +4240,43 @@ const ANIM_FX = [
   { id: 'wipeV',  label: 'Cortina vertical' },
   { id: 'openH',  label: 'Abrir horizontal' },
   { id: 'openV',  label: 'Abrir vertical' },
+  { id: 'divider', label: 'Desde el divisor (Cadena Nacional)' },
 ];
 
 /* Dibuja una imagen centrada aplicando un efecto.
    q = visibilidad 0..1 (0 oculto, 1 completo; puede pasar de 1 por rebote).
    isIn = true entrada / false salida. */
+/* Efecto de la Cadena Nacional: la línea divisoria crece y de ella salen el escudo (izq.) y el
+   texto (der.), recortados por el propio divisor; al salir hacen el recorrido inverso. */
+function animDrawDivider(ctx, img, W, H, frac, q, ratio) {
+  const sp = animAssets.split, qc = clamp(q, 0, 1);
+  if (qc <= 0.002) return;
+  const base = Math.min(W, H) * frac;
+  let dw, dh; if (ratio >= 1) { dw = base; dh = base / ratio; } else { dh = base; dw = base * ratio; }
+  const dx = (W - dw) / 2, dy = (H - dh) / 2, iw = img.naturalWidth, ih = img.naturalHeight;
+  const a = animEaseOutCubic(clamp(qc / 0.28, 0, 1));            // el divisor crece
+  const b = animEaseInOutCubic(clamp((qc - 0.18) / 0.82, 0, 1)); // las partes se deslizan
+  const lx = dx + dw * sp.x0, rx = dx + dw * sp.x1, lw = lx - dx, rw = dx + dw - rx;
+  const sx0 = iw * sp.x0, sx1 = iw * sp.x1;
+  // izquierda (escudo): sale hacia la izquierda desde el divisor
+  ctx.save(); ctx.beginPath(); ctx.rect(dx - 2, dy - 2, lw + 2, dh + 4); ctx.clip();
+  ctx.globalAlpha = clamp(b * 2, 0, 1);
+  ctx.drawImage(img, 0, 0, sx0, ih, dx + lw * (1 - b), dy, lw, dh); ctx.restore();
+  // derecha (texto): sale hacia la derecha desde el divisor
+  ctx.save(); ctx.beginPath(); ctx.rect(rx, dy - 2, rw + 2, dh + 4); ctx.clip();
+  ctx.globalAlpha = clamp(b * 2, 0, 1);
+  ctx.drawImage(img, sx1, 0, iw - sx1, ih, rx - rw * (1 - b), dy, rw, dh); ctx.restore();
+  // divisor
+  const cy = dy + dh * (sp.y0 + sp.y1) / 2, hh = dh * (sp.y1 - sp.y0) * a;
+  if (hh > 0.5) ctx.drawImage(img, sx0, ih * sp.y0, Math.max(1, sx1 - sx0), ih * (sp.y1 - sp.y0), lx, cy - hh / 2, Math.max(1, rx - lx), hh);
+}
+
 function animDrawFx(ctx, img, W, H, frac, q, ratio, effect, isIn) {
   if (!img) return;
+  if (effect === 'divider') {
+    if (img === animAssets.fullImg && animAssets.split) { animDrawDivider(ctx, img, W, H, frac, q, ratio); return; }
+    effect = 'openH';   // sin divisor (o escudo solo): cae a "Abrir horizontal"
+  }
   const qc = clamp(q, 0, 1);
   if (qc <= 0.002) return;
   const r = ratio || (img.naturalWidth / img.naturalHeight) || 1;
@@ -4226,13 +4329,63 @@ function animDrawFrame(ctx, tSec) {
   else { ctx.fillStyle = anim.bgColor; ctx.fillRect(0, 0, W, H); }
 
   const dur = Math.max(0.5, anim.durationSec);
-  const p = clamp(tSec / dur, 0, 1);
-
   const fi = anim.fxIn, fo = anim.fxOut;
   const crestR = CREST_VB.w / CREST_VB.h;
   const CF = anim.measures.crestFrac / 100, FF = anim.measures.fullFrac / 100;   // tamaño en pantalla del escudo y del logotipo completo (ajustable en "Medidas")
 
-  if (anim.mode === 'intro') {
+  // Modo "Intro + Outro": la primera mitad es la intro y la segunda mitad el outro.
+  let mode = anim.mode, p = clamp(tSec / dur, 0, 1);
+  const seq = anim.seq || 'auto';
+  const effIn = (q0) => (fi === 'fade' || fi.startsWith('zoom') || fi === 'blur') ? animEaseOutCubic(q0) : animEaseOutBack(q0);
+  if (seq === 'logoOnly') {
+    // Solo el logo editado: aparece, se mantiene y desaparece (sin escudo solo).
+    if (fi === 'divider' && animAssets.split) {
+      const inQ = animEaseInOutCubic(clamp(p / 0.35, 0, 1));
+      const outQ = 1 - animEaseInOutCubic(clamp((p - 0.78) / 0.22, 0, 1));
+      animDrawFx(ctx, animAssets.fullImg, W, H, FF, Math.min(inQ, outQ), animAssets.fullRatio, 'divider', true);
+    } else if (p < 0.25) animDrawFx(ctx, animAssets.fullImg, W, H, FF, effIn(p / 0.25), animAssets.fullRatio, fi, true);
+    else if (p < 0.80) animDrawFx(ctx, animAssets.fullImg, W, H, FF, 1, animAssets.fullRatio, 'fade', true);
+    else animDrawFx(ctx, animAssets.fullImg, W, H, FF, 1 - animEaseInCubic((p - 0.80) / 0.20), animAssets.fullRatio, fo, false);
+    return;
+  }
+  if (seq === 'crestLogoCrest') {
+    // Escudo (bloque institucional solo) → logo editado → escudo, y el escudo se despide.
+    if (p < 0.14) animDrawFx(ctx, animAssets.crestImg, W, H, CF, effIn(p / 0.14), crestR, fi, true);
+    else if (p < 0.22) animDrawFx(ctx, animAssets.crestImg, W, H, CF, 1, crestR, 'fade', true);
+    else if (p < 0.40) {
+      const lp = animEaseInOutCubic((p - 0.22) / 0.18);
+      animDrawFx(ctx, animAssets.crestImg, W, H, CF, 1 - lp, crestR, fo, false);
+      animDrawFx(ctx, animAssets.fullImg, W, H, FF, lp, animAssets.fullRatio, fi, true);
+    } else if (p < 0.62) animDrawFx(ctx, animAssets.fullImg, W, H, FF, 1, animAssets.fullRatio, 'fade', true);
+    else if (p < 0.80) {
+      const lp = animEaseInOutCubic((p - 0.62) / 0.18);
+      animDrawFx(ctx, animAssets.fullImg, W, H, FF, 1 - lp, animAssets.fullRatio, fo, false);
+      animDrawFx(ctx, animAssets.crestImg, W, H, CF, lp, crestR, fi, true);
+    } else if (p < 0.90) animDrawFx(ctx, animAssets.crestImg, W, H, CF, 1, crestR, 'fade', true);
+    else animDrawFx(ctx, animAssets.crestImg, W, H, CF, 1 - animEaseInCubic((p - 0.90) / 0.10), crestR, fo, false);
+    return;
+  }
+  let holdFull = false;
+  if (mode === 'both') {
+    // Intro (se detiene cuando el logo está completo) -> pausa con el logo fijo -> outro (arranca desde el logo completo).
+    const dv = anim.fxIn === 'divider' && animAssets.split;
+    const A = dv ? 0.5 : 0.70, B = dv ? 0.5 : 0.20;     // fracción de cada animación donde el logo ya está completo
+    const iS = Math.max(0.3, anim.introSec), hS = Math.max(0, anim.holdSec), oS = Math.max(0.3, anim.outroSec);
+    if (tSec < iS) { mode = 'intro'; p = (tSec / iS) * A; }
+    else if (tSec < iS + hS) { holdFull = true; }
+    else { mode = 'outro'; p = B + clamp((tSec - iS - hS) / oS, 0, 1) * (1 - B); }
+  }
+  if (holdFull) { animDrawFx(ctx, animAssets.fullImg, W, H, anim.measures.fullFrac / 100, 1, animAssets.fullRatio, 'fade', true); return; }
+
+
+  if (fi === 'divider' && animAssets.split) {
+    // Cadena Nacional: el logotipo completo se arma desde el divisor, se mantiene y se recoge en él.
+    const inQ = animEaseInOutCubic(clamp(p / 0.35, 0, 1));
+    const outQ = 1 - animEaseInOutCubic(clamp((p - 0.78) / 0.22, 0, 1));
+    animDrawFx(ctx, animAssets.fullImg, W, H, FF, Math.min(inQ, outQ), animAssets.fullRatio, 'divider', true);
+    return;
+  }
+  if (mode === 'intro') {
     // Escudo entra -> fundido al logotipo completo (fijo) -> logotipo sale.
     const revealEnd = 0.30, transEnd = 0.55, holdEnd = 0.85;
     if (p < revealEnd) {
@@ -4412,10 +4565,13 @@ function animCardMode() {
       <div class="seg">
         <button class="${anim.mode==='intro'?'active':''}" data-anim-mode="intro">Intro</button>
         <button class="${anim.mode==='outro'?'active':''}" data-anim-mode="outro">Outro</button>
+        <button class="${anim.mode==='both'?'active':''}" data-anim-mode="both">Intro + Outro</button>
       </div>
       <p class="hint">${anim.mode==='intro'
         ? 'El escudo se revela solo y luego da paso al logotipo completo — al estilo de la Cadena Nacional.'
-        : 'El logotipo completo aparece, pasa al escudo solo y el escudo se desvanece — ideal para el cierre de un video.'}</p>
+        : anim.mode==='outro'
+        ? 'El logotipo completo aparece, pasa al escudo solo y el escudo se desvanece — ideal para el cierre de un video.'
+        : 'Un solo video: la intro, una pausa con el logo completo fijo y el outro. Cada tramo tiene su propia duración en "Duración y resolución".'}</p>
     </div>
   `);
 }
@@ -4463,6 +4619,13 @@ function animCardContent() {
         <input type="text" value="${anim.crestColor}" style="width:110px" data-anim-prop="crestColorText">
       </div>
       <p class="hint">Afecta el escudo solo (inicio del <b>Intro</b> y final del <b>Outro</b>); el logotipo completo se controla con los dos colores de abajo.</p>
+    </div>
+    <div class="field">
+      <label class="flabel">Secuencia del video</label>
+      <label class="check-row"><input type="checkbox" ${anim.seq==='crestLogoCrest'?'checked':''} data-anim-seq="crestLogoCrest"> <b>Escudo → logo editado → escudo</b></label>
+      <p class="hint">Sale primero el bloque institucional solo con el escudo, después el logo editado, y termina de nuevo con el escudo.</p>
+      <label class="check-row"><input type="checkbox" ${anim.seq==='logoOnly'?'checked':''} data-anim-seq="logoOnly"> <b>Solo el logo editado</b></label>
+      <p class="hint">Aparece únicamente el logo editado, sin el escudo solo. Si ambos están apagados, la secuencia depende de <b>Tipo de video</b> (Intro, Outro o Intro + Outro).</p>
     </div>
     ${animColorOverrideField('inst', 'Color del bloque institucional', 'Escudo + "Gobierno de El Salvador" dentro del logotipo completo. Si lo desactivas, usa el color de "Crear Logotipo".')}
     ${animColorOverrideField('logo', 'Color del logo editado', 'Bloques de texto (ministerio, dirección, unidad) y separadores. Si lo desactivas, usa el color de "Crear Logotipo".')}
@@ -4641,10 +4804,24 @@ function animCardTiming() {
   ];
   const curRes = `${anim.resW}x${anim.resH}`;
   return cardWrap('animTiming', ICONS.ruler, 'Duración y resolución', `
+    ${anim.mode === 'both' && anim.seq === 'auto' ? `
+    <div class="field">
+      <label class="flabel">Intro <span class="val" id="animIntroVal">${anim.introSec.toFixed(1)}s</span></label>
+      <input type="range" min="1" max="12" step="0.5" value="${anim.introSec}" data-anim-prop="introSec">
+    </div>
+    <div class="field">
+      <label class="flabel">Pausa con el logo fijo <span class="val" id="animHoldVal">${anim.holdSec.toFixed(1)}s</span></label>
+      <input type="range" min="0" max="10" step="0.5" value="${anim.holdSec}" data-anim-prop="holdSec">
+    </div>
+    <div class="field">
+      <label class="flabel">Outro <span class="val" id="animOutroVal">${anim.outroSec.toFixed(1)}s</span></label>
+      <input type="range" min="1" max="12" step="0.5" value="${anim.outroSec}" data-anim-prop="outroSec">
+      <p class="hint">Duración total: <b id="animTotalVal">${anim.durationSec.toFixed(1)}s</b>. Con la pausa en 0 s, el logo completo pasa directo del intro al outro.</p>
+    </div>` : `
     <div class="field">
       <label class="flabel">Duración <span class="val" id="animDurVal">${anim.durationSec.toFixed(1)}s</span></label>
-      <input type="range" min="2" max="12" step="0.5" value="${anim.durationSec}" data-anim-prop="durationSec">
-    </div>
+      <input type="range" min="2" max="12" step="0.5" value="${Math.min(12, anim.durationSec)}" data-anim-prop="durationSec">
+    </div>`}
     <div class="field">
       <label class="flabel">Resolución</label>
       <select data-anim-prop="resolution">
@@ -4692,10 +4869,22 @@ function animCardExport() {
 function animBindControlEvents() {
   const right = document.getElementById('animRight');
 
+  right.querySelectorAll('[data-anim-seq]').forEach(el => el.addEventListener('change', () => {
+    anim.seq = el.checked ? el.dataset.animSeq : 'auto';   // los dos interruptores son excluyentes
+    renderAnimControls();
+    animPause(); animCurTime = 0; animSyncBothDuration();
+    animRender(); animUpdateTimelineUI(); animPlay();
+  }));
+
   right.querySelectorAll('[data-anim-mode]').forEach(el => el.addEventListener('click', () => {
+    const prevMode = anim.mode;
     anim.mode = el.dataset.animMode;
+    if (anim.mode === 'both') animSyncBothDuration();
+    else if (prevMode === 'both') anim.durationSec = 6;
+    if (animCurTime > anim.durationSec) animCurTime = 0;
     renderAnimControls();
     animRender();
+    animUpdateTimelineUI();
   }));
 
   const fxPick = (attr, key) => right.querySelectorAll(`[${attr}]`).forEach(el => el.addEventListener('click', () => {
@@ -4774,6 +4963,14 @@ function animBindControlEvents() {
         if (lbl) lbl.textContent = anim.durationSec.toFixed(1) + 's';
         animCurTime = clamp(animCurTime, 0, anim.durationSec);
         animRender();
+      } else if (prop === 'introSec' || prop === 'holdSec' || prop === 'outroSec') {
+        anim[prop] = parseFloat(el.value);
+        animSyncBothDuration();
+        const ids = { introSec: 'animIntroVal', holdSec: 'animHoldVal', outroSec: 'animOutroVal' };
+        const lbl = document.getElementById(ids[prop]); if (lbl) lbl.textContent = anim[prop].toFixed(1) + 's';
+        const tot = document.getElementById('animTotalVal'); if (tot) tot.textContent = anim.durationSec.toFixed(1) + 's';
+        animCurTime = clamp(animCurTime, 0, anim.durationSec);
+        animRender(); animUpdateTimelineUI();
       } else if (prop === 'resolution') {
         const [w, h] = el.value.split('x').map(Number);
         anim.resW = w; anim.resH = h;
@@ -4840,27 +5037,35 @@ async function animExportVideo() {
     if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
     const isMp4 = mimeType.startsWith('video/mp4'), ext = isMp4 ? 'mp4' : 'webm';
 
-    const stream = canvas.captureStream(anim.fps);
-    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 10000000 });
+    let stream = canvas.captureStream(0);
+    if (!(stream.getVideoTracks()[0] && stream.getVideoTracks()[0].requestFrame)) stream = canvas.captureStream(anim.fps);
+    const track = stream.getVideoTracks()[0];
+    const manual = !!(track && track.requestFrame);
+    const bps = Math.round(clamp(anim.resW * anim.resH * anim.fps * 0.12, 4e6, 20e6));
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bps });
     const chunks = [];
     recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
     const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
 
     recorder.start();
     const totalFrames = Math.max(1, Math.round(anim.durationSec * anim.fps));
+    const t0 = performance.now();
     for (let f = 0; f <= totalFrames; f++) {
-      const t = f / anim.fps;
-      animDrawFrame(ctx, t);
+      animDrawFrame(ctx, f / anim.fps);
+      if (manual) track.requestFrame();
       if (progressFill) progressFill.style.width = Math.round((f / totalFrames) * 100) + '%';
-      await new Promise((r) => setTimeout(r, 1000 / anim.fps));
+      // ritmo exacto: cada cuadro se entrega en su instante (sin acumular desfase)
+      const wait = t0 + ((f + 1) * 1000) / anim.fps - performance.now();
+      await new Promise((r) => setTimeout(r, Math.max(0, wait)));
     }
+    await new Promise((r) => setTimeout(r, 250));   // deja salir el último cuadro
     recorder.stop();
     await stopped;
 
     const blob = new Blob(chunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
     if (blob.size < 1000) { toast('La grabación salió vacía; intenta de nuevo (revisa que el navegador permita grabar el lienzo)', 'err'); }
     else {
-      downloadBlob(blob, `animacion-${anim.mode}-gobierno-el-salvador${anim.bgType === 'chroma' ? '-croma' : ''}.${ext}`);
+      downloadBlob(blob, `animacion-${anim.seq === 'crestLogoCrest' ? 'escudo-logo-escudo' : anim.seq === 'logoOnly' ? 'solo-logo' : (anim.mode === 'both' ? 'intro-outro' : anim.mode)}-gobierno-el-salvador${anim.bgType === 'chroma' ? '-croma' : ''}.${ext}`);
       toast(`Video exportado (.${ext})`, 'ok');
     }
   } catch (e) {
@@ -4893,6 +5098,17 @@ document.getElementById('iconLogo').innerHTML = ICONS.layers;
 document.getElementById('iconAnim').innerHTML = ICONS.film;
 document.getElementById('logoBrandBadge').innerHTML = brandBadgeSvg();
 document.getElementById('homeThemeToggle').setAttribute('data-theme-toggle', '');
+
+/* Si el PDF del manual no está junto a index.html, avisa en lugar de abrir una pestaña con error 404. */
+document.getElementById('goManual').addEventListener('click', function (ev) {
+  if (!/^https?:$/.test(location.protocol)) return;     // con file:// se deja abrir normalmente
+  ev.preventDefault();
+  const url = this.getAttribute('href');
+  fetch(url, { method: 'HEAD' }).then(r => {
+    if (r.ok) window.open(url, '_blank', 'noopener');
+    else toast('No se encontró el archivo "MANUAL DE USO DE MARCA GOB 2019-2026.pdf" junto a index.html', 'err');
+  }).catch(() => window.open(url, '_blank', 'noopener'));
+});
 
 document.getElementById('goWatermark').addEventListener('click', () => navigateTo('view-watermark'));
 document.getElementById('goAnim').addEventListener('click', () => navigateTo('view-anim'));
@@ -5267,6 +5483,14 @@ document.getElementById('iconCarnet').innerHTML = '<svg viewBox="0 0 24 24" fill
 document.getElementById('goCarnet').addEventListener('click', () => navigateTo('view-carnet'));
 initCarnetTool();
 cnLoadPresets();
+</script>
+<script id="pwa-register">
+/* Instalable desde el menú del navegador (Android: "Instalar aplicación"). No muestra avisos ni botones propios. */
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () { /* sin service worker la web sigue funcionando */ });
+  });
+}
 </script>
 </body>
 </html>
