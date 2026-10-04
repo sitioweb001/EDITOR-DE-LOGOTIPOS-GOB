@@ -125,8 +125,11 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 | Interruptor | Resultado |
 |---|---|
 | **Escudo → logo editado → escudo** | Sale primero el escudo solo, luego el logo editado, vuelve el escudo y se despide |
+| **Estilo Cadena Nacional: institucional + editado** | El escudo se construye por partes (triángulo, emblema y anillo de estrellas), retrocede con un resplandor y se recrea el logo completo con los bloques editados |
 | **Solo el logo editado** | Aparece únicamente el logo editado, sin el escudo solo |
 | *(ambos apagados)* | La secuencia depende de *Tipo de video* (Intro, Outro o Intro + Outro) |
+
+**Estilo Cadena Nacional.** Con *Intro* se construye y queda armado el logo; con *Outro* se deshace al revés; con *Intro + Outro* se construye, se mantiene y se deshace. Usa la duración única (se recomiendan 6 s o más) y respeta el tamaño del escudo y del logo de *Medidas*. Si el logo usa una imagen propia en lugar del escudo oficial vectorial, cae en la secuencia «Escudo → logo editado → escudo». El archivo se llama `animacion-cadena-nacional-…`.
 
 **Intro + Outro.** La intro se detiene cuando el logo ya está completo, se mantiene quieto durante la pausa y el outro arranca desde ahí, sin saltos. Con la pausa en 0 s, el logo pasa directo de la intro al outro. Duración total = intro + pausa + outro (hasta 24 s).
 
