@@ -98,6 +98,12 @@ html[data-theme="dark"] #view-home{
 .home-crest{width:130px;margin-bottom:4px;filter:drop-shadow(0 6px 18px rgba(20,25,40,.12));}
 .home-title{font-size:26px;font-weight:800;letter-spacing:.2px;margin:18px 0 2px;text-align:center;}
 .home-subtitle{font-size:13.5px;color:var(--text-dim);text-align:center;margin:0 0 16px;}
+.seq-opt{display:block;border:1px solid var(--panel-border);border-radius:10px;padding:9px 11px;margin:0 0 7px;cursor:pointer;transition:border-color .15s,background .15s;}
+.seq-opt:hover{border-color:var(--accent);}
+.seq-opt.on{border-color:var(--accent);background:var(--accent-soft);}
+.seq-opt .so-t{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;}
+.seq-opt .so-d{margin:4px 0 0 24px;font-size:11.5px;line-height:1.45;color:var(--text-dim);font-weight:400;}
+.seq-sub{margin:-2px 0 8px 24px;padding:8px 10px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;}
 .home-manual-btn{display:inline-flex;align-items:center;gap:8px;margin:0 0 34px;padding:9px 18px;border-radius:999px;border:1px solid var(--panel-border);background:var(--panel);color:var(--text);font-size:13px;font-weight:700;text-decoration:none;box-shadow:var(--shadow);transition:transform .15s,border-color .15s,box-shadow .15s;}
 .home-manual-btn:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 22px rgba(20,25,40,.12);}
 .home-manual-btn svg{width:17px;height:17px;flex:none;}
@@ -4067,6 +4073,8 @@ const anim = {
   fxOut: 'fade',           // efecto de SALIDA (desaparecer)
   fxIntensity: 1,          // multiplicador de distancia / zoom / difuminado
   durationSec: 6,
+  cn: { tri: 'draw', tip: true, emblem: 'bloom', stars: 'pop', dir: 1, glow: true, glowColor: '#5F73FF', halo: false, sparks: false, shine: false, breathe: true },   // personalización del estilo Cadena Nacional
+  flash: true,            // Cadena Nacional: destello (onda) al completarse el escudo
   seq: 'auto',            // 'auto' (según Intro/Outro) | 'crestLogoCrest' (escudo → logo → escudo) | 'logoOnly' (solo el logo editado)
   introSec: 5, holdSec: 2, outroSec: 5,   // modo Intro + Outro: duración de cada tramo (segundos)
   resW: 1920, resH: 1080,
@@ -4307,10 +4315,31 @@ function animDrawDivider(ctx, img, W, H, frac, q, ratio) {
   if (hh > 0.5) ctx.drawImage(img, sx0, ih * sp.y0, Math.max(1, sx1 - sx0), ih * (sp.y1 - sp.y0), lx, cy - hh / 2, Math.max(1, rx - lx), hh);
 }
 
+/* Las 14 estrellas del anillo como trazados independientes (para que aparezcan una por una). */
+let animStarCache = null;
+function animStars() {
+  if (animStarCache) return animStarCache;
+  animStarCache = (ESCUDO_PATHS.match(/<polygon[^>]*points="[^"]+"/g) || []).slice(0, 14).map(t => {
+    const n = t.match(/points="([^"]+)"/)[1].trim().split(/[\s,]+/).map(Number), pts = [];
+    for (let i = 0; i + 1 < n.length; i += 2) pts.push([n[i], n[i + 1]]);
+    let cx = 0, cy = 0; pts.slice(0, 10).forEach(q => { cx += q[0]; cy += q[1]; }); cx /= 10; cy /= 10;
+    const path = new Path2D(); pts.forEach((q, i) => i ? path.lineTo(q[0], q[1]) : path.moveTo(q[0], q[1])); path.closePath();
+    return { path, cx, cy };
+  });
+  return animStarCache;
+}
+
 /* Estilo Cadena Nacional (logo institucional + editado): el escudo se construye por partes
    (triángulo → emblema → estrellas), retrocede con un resplandor y deja armado el logo completo. */
+const ANIM_CN_DEFAULT = { tri: 'draw', tip: true, emblem: 'bloom', stars: 'pop', dir: 1, glow: true, glowColor: '#5F73FF', halo: false, sparks: false, shine: false, breathe: true };
+function animRgba(hex, a) {
+  let h = String(hex || '#5F73FF').replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const n = parseInt(h, 16) || 0; return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+let animShineCanvas = null;
 function animDrawCadena(ctx, W, H, p) {
   const A = animAssets, VB = CREST_VB;
+  const cn = Object.assign({}, ANIM_CN_DEFAULT, anim.cn || {});
   const CF = anim.measures.crestFrac / 100, FF = anim.measures.fullFrac / 100;
   const crestR = VB.w / VB.h;
   const sizeRect = (frac, ratio) => { const b = Math.min(W, H) * frac; return ratio >= 1 ? { w: b, h: b / ratio } : { w: b * ratio, h: b }; };
@@ -4324,44 +4353,111 @@ function animDrawCadena(ctx, W, H, p) {
   };
   const drawImg = (img) => ctx.drawImage(img, VB.minX, VB.minY, VB.w, VB.h);
 
-  if (p >= 0.90) { animDrawFx(ctx, A.fullImg, W, H, FF, 1, A.fullRatio, 'fade', true); return; }
+  if (p >= 0.90) {   // logo armado: respira con un acercamiento muy suave
+    const hp = clamp((p - 0.90) / 0.10, 0, 1), z = cn.breathe ? 1 + 0.035 * animEaseOutCubic(hp) : 1;
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(z, z); ctx.translate(-W / 2, -H / 2);
+    if (cn.shine) {   // brillo que cruza el logo (solo sobre la tinta del logo)
+      if (!animShineCanvas) animShineCanvas = document.createElement('canvas');
+      const sc = animShineCanvas; if (sc.width !== W || sc.height !== H) { sc.width = W; sc.height = H; }
+      const sx = sc.getContext('2d'); sx.clearRect(0, 0, W, H);
+      animDrawFx(sx, A.fullImg, W, H, FF, 1, A.fullRatio, 'fade', true);
+      const fsz = sizeRect(FF, A.fullRatio), x0 = (W - fsz.w) / 2, bx = x0 - fsz.w * 0.25 + fsz.w * 1.5 * animEaseInOutCubic(hp), bw2 = fsz.w * 0.22;
+      const g = sx.createLinearGradient(bx - bw2, 0, bx + bw2, 0);
+      g.addColorStop(0, animRgba(cn.glowColor, 0)); g.addColorStop(0.5, animRgba(cn.glowColor, 0.95)); g.addColorStop(1, animRgba(cn.glowColor, 0));
+      sx.globalCompositeOperation = 'source-atop'; sx.fillStyle = g; sx.fillRect(0, 0, W, H); sx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(sc, 0, 0);
+    } else animDrawFx(ctx, A.fullImg, W, H, FF, 1, A.fullRatio, 'fade', true);
+    ctx.restore(); return;
+  }
 
   if (p < 0.70) {
     // ---- construcción ----
-    const k = 0.93 + 0.07 * animEaseOutCubic(clamp(p / 0.68, 0, 1));
+    const k = 0.90 + 0.10 * animEaseOutCubic(clamp(p / 0.68, 0, 1));
+    const fadeIn = clamp(p / 0.05, 0, 1);
     const rr = { x: big.x + big.w * (1 - k) / 2, y: big.y + big.h * (1 - k) / 2, w: big.w * k, h: big.h * k };
-    const tri = [[143.5, 114.5], [175.6, 169.5], [111.4, 169.5]];            // apex, base derecha, base izquierda
+    const tri = [[143.5, 114.5], [175.6, 169.5], [111.4, 169.5]];            // vértice, base derecha, base izquierda
+    const col = anim.crestColor, CX = 143.5, CY = 150.5;
     withCrest(rr, () => {
-      // 1) el triángulo se dibuja
-      const e1 = animEaseInOutCubic(clamp(p / 0.16, 0, 1));
-      const strokeA = 1 - clamp((p - 0.20) / 0.10, 0, 1);
-      if (e1 > 0 && strokeA > 0) {
-        const pts = [tri[0], tri[2], tri[1], tri[0]], L = [];
-        let tot = 0; for (let i = 0; i < 3; i++) { const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); L.push(l); tot += l; }
-        let left = tot * e1;
-        ctx.save(); ctx.globalAlpha = strokeA; ctx.strokeStyle = anim.crestColor; ctx.lineWidth = 3.2; ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
-        ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 0; i < 3 && left > 0; i++) { const f = Math.min(1, left / L[i]); ctx.lineTo(pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f); left -= L[i]; }
-        ctx.stroke(); ctx.restore();
+      ctx.globalAlpha = fadeIn;
+      if (cn.halo) {   // halo suave detrás del escudo mientras se construye
+        const ha = clamp(p / 0.45, 0, 1) * (1 - clamp((p - 0.62) / 0.08, 0, 1)) * 0.5;
+        const hg = ctx.createRadialGradient(CX, CY, 8, CX, CY, 125);
+        hg.addColorStop(0, animRgba(cn.glowColor, ha)); hg.addColorStop(1, animRgba(cn.glowColor, 0));
+        ctx.save(); ctx.fillStyle = hg; ctx.fillRect(CX - 130, CY - 130, 260, 260); ctx.restore();
       }
-      // 2) el interior del triángulo y, 3) el emblema completo (banderas, laureles, cinta)
-      const e2 = animEaseOutCubic(clamp((p - 0.14) / 0.18, 0, 1));
-      const t3 = clamp((p - 0.30) / 0.22, 0, 1);
-      if (e2 > 0) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(tri[0][0], tri[0][1] - 18); ctx.lineTo(tri[1][0] + 5, tri[1][1] + 4); ctx.lineTo(tri[2][0] - 5, tri[2][1] + 4); ctx.closePath();
-        if (t3 > 0) { ctx.moveTo(143.5 + 30 + 46 * animEaseInOutCubic(t3), 150); ctx.arc(143.5, 150, 30 + 46 * animEaseInOutCubic(t3), 0, Math.PI * 2); }
-        ctx.clip();
-        ctx.globalAlpha = e2; drawImg(A.crestLayers.body);
+      // 1) el triángulo (se dibuja con trazo o simplemente aparece)
+      const triFade = cn.tri === 'fade', ta = triFade ? animEaseOutCubic(clamp(p / 0.12, 0, 1)) : 1;
+      const e1 = triFade ? 1 : animEaseInOutCubic(clamp(p / 0.15, 0, 1));
+      const strokeA = 1 - clamp((p - 0.19) / 0.09, 0, 1);
+      if (e1 > 0 && strokeA > 0) {
+        const pts = [tri[0], tri[2], tri[1], tri[0]], L = []; let tot = 0;
+        for (let i = 0; i < 3; i++) { const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); L.push(l); tot += l; }
+        let left = tot * e1, tip = pts[0];
+        ctx.save(); ctx.globalAlpha = fadeIn * strokeA * ta; ctx.strokeStyle = col; ctx.lineWidth = 3.2; ctx.lineJoin = 'miter';
+        ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 0; i < 3 && left > 0; i++) { const f = Math.min(1, left / L[i]); tip = [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f]; ctx.lineTo(tip[0], tip[1]); left -= L[i]; }
+        ctx.stroke();
+        if (cn.tip && e1 < 1) { ctx.shadowColor = animRgba(cn.glowColor, 0.9); ctx.shadowBlur = 10; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(tip[0], tip[1], 2.4, 0, Math.PI * 2); ctx.fill(); }
         ctx.restore();
       }
-      // 4) las estrellas aparecen girando alrededor del escudo
-      const t4 = clamp((p - 0.50) / 0.18, 0, 1);
-      if (t4 > 0) {
-        const e4 = animEaseInOutCubic(t4), a0 = -Math.PI / 2;
-        ctx.save(); ctx.beginPath(); ctx.moveTo(143.5, 150.5); ctx.arc(143.5, 150.5, 200, a0, a0 + Math.PI * 2 * e4); ctx.closePath(); ctx.clip();
-        ctx.globalAlpha = clamp(t4 * 4, 0, 1); drawImg(A.crestLayers.stars); ctx.restore();
+      // 2) interior del triángulo (volcán, sol, rayos)
+      const e2 = animEaseOutCubic(clamp((p - 0.12) / 0.16, 0, 1));
+      if (e2 > 0) {
+        ctx.save(); ctx.globalAlpha = fadeIn * e2;
+        ctx.beginPath(); ctx.moveTo(tri[0][0], tri[0][1] - 18); ctx.lineTo(tri[1][0] + 5, tri[1][1] + 4); ctx.lineTo(tri[2][0] - 5, tri[2][1] + 4); ctx.closePath(); ctx.clip();
+        drawImg(A.crestLayers.body); ctx.restore();
+      }
+      // 3) banderas, laureles y cinta "florecen" desde la base
+      const t3 = clamp((p - 0.26) / 0.22, 0, 1), e3 = animEaseInOutCubic(t3);
+      if (t3 > 0) {
+        ctx.save(); ctx.globalAlpha = fadeIn * clamp(t3 * 2.2, 0, 1);
+        if (cn.emblem === 'bloom') { ctx.beginPath(); ctx.ellipse(CX, 240, 108 * e3 + 0.1, 150 * e3 + 0.1, 0, 0, Math.PI * 2); ctx.clip(); }
+        else if (cn.emblem === 'zoom') { const zs = 0.7 + 0.3 * e3; ctx.translate(CX, CY); ctx.scale(zs, zs); ctx.translate(-CX, -CY); }
+        else ctx.globalAlpha = fadeIn * e3;   // 'fade': aparece completo con desvanecimiento
+        drawImg(A.crestLayers.body); ctx.restore();
+      }
+      // 4) estrellas: una por una, en sentido horario, con rebote
+      const st = animStars();
+      if (cn.stars === 'pop') {
+        st.forEach((S, i) => {
+          const order = cn.dir < 0 ? (14 - i) % 14 : i;
+          const tt = clamp((p - (0.46 + order * 0.0105)) / 0.065, 0, 1);
+          if (tt <= 0) return;
+          const sc = animEaseOutBack(tt);
+          ctx.save(); ctx.globalAlpha = fadeIn * clamp(tt * 3, 0, 1); ctx.fillStyle = col;
+          ctx.translate(S.cx, S.cy); ctx.scale(sc, sc); ctx.rotate((1 - tt) * -0.9 * cn.dir); ctx.translate(-S.cx, -S.cy);
+          ctx.fill(S.path); ctx.restore();
+        });
+      } else if (cn.stars === 'spin') {   // barrido circular
+        const t4 = clamp((p - 0.46) / 0.20, 0, 1), e4 = animEaseInOutCubic(t4), a0 = -Math.PI / 2;
+        if (t4 > 0) {
+          ctx.save(); ctx.beginPath(); ctx.moveTo(CX, CY);
+          ctx.arc(CX, CY, 200, a0, a0 + cn.dir * Math.PI * 2 * e4, cn.dir < 0); ctx.closePath(); ctx.clip();
+          ctx.globalAlpha = fadeIn * clamp(t4 * 4, 0, 1); drawImg(A.crestLayers.stars); ctx.restore();
+        }
+      } else {                             // 'fade': todas juntas, creciendo
+        const t4 = clamp((p - 0.48) / 0.16, 0, 1), sc = 0.8 + 0.2 * animEaseOutCubic(t4);
+        if (t4 > 0) { ctx.save(); ctx.globalAlpha = fadeIn * animEaseOutCubic(t4); ctx.translate(CX, CY); ctx.scale(sc, sc); ctx.translate(-CX, -CY); drawImg(A.crestLayers.stars); ctx.restore(); }
+      }
+      // 5b) chispas: puntos de luz que salen de cada estrella al completarse
+      const t6 = clamp((p - 0.62) / 0.10, 0, 1);
+      if (cn.sparks && t6 > 0 && t6 < 1) {
+        ctx.save(); ctx.fillStyle = animRgba(cn.glowColor, 1);
+        animStars().forEach((S, i) => {
+          const ang = Math.atan2(S.cy - CY, S.cx - CX);
+          for (let j = -1; j <= 1; j++) {
+            const a2 = ang + j * 0.22, d = 10 + 34 * animEaseOutCubic(t6);
+            ctx.globalAlpha = 0.9 * (1 - t6); ctx.beginPath();
+            ctx.arc(S.cx + Math.cos(a2) * d, S.cy + Math.sin(a2) * d, 1.5 * (1 - t6) + 0.3, 0, Math.PI * 2); ctx.fill();
+          }
+        });
+        ctx.restore();
+      }
+      // 5) destello: onda que se expande al completarse el escudo
+      const t5 = clamp((p - 0.62) / 0.08, 0, 1);
+      if (anim.flash !== false && t5 > 0 && t5 < 1) {
+        ctx.save(); ctx.globalAlpha = 0.55 * (1 - t5); ctx.strokeStyle = col; ctx.lineWidth = 1.1;
+        ctx.beginPath(); ctx.arc(CX, CY, 92 + 46 * animEaseOutCubic(t5), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       }
     });
     return;
@@ -4378,7 +4474,7 @@ function animDrawCadena(ctx, W, H, p) {
   }
   ctx.save();
   const glow = Math.sin(Math.PI * eu);
-  if (glow > 0.01) { ctx.shadowColor = 'rgba(95,115,255,0.75)'; ctx.shadowBlur = 26 * glow * (Math.min(W, H) / 720); }
+  if (cn.glow && glow > 0.01) { ctx.shadowColor = animRgba(cn.glowColor, 0.75); ctx.shadowBlur = 26 * glow * (Math.min(W, H) / 720); }
   ctx.globalAlpha = 1 - eu;
   ctx.drawImage(A.crestImg, rect.x, rect.y, rect.w, rect.h);
   ctx.globalAlpha = eu;
@@ -4683,20 +4779,44 @@ function renderAnimControls() {
 }
 
 function animCardMode() {
+  const seqOpts = [
+    { id: 'auto',           t: 'Clásico',                   d: 'Según el modo: el escudo se revela solo y da paso al logo (Intro), o el logo pasa al escudo y se desvanece (Outro).' },
+    { id: 'cadena',         t: 'Cadena Nacional',           d: 'El escudo se construye por partes (triángulo, emblema y estrellas), retrocede con un resplandor y se recrea el logo completo con tus bloques editados.' },
+    { id: 'crestLogoCrest', t: 'Escudo → logo → escudo',    d: 'Empieza y termina con el escudo solo; en medio aparece el logo editado.' },
+    { id: 'logoOnly',       t: 'Solo el logo editado',      d: 'El logo editado aparece, se mantiene y desaparece, sin pasar por el escudo solo.' },
+  ];
+  const modeName = { intro: 'Intro', outro: 'Outro', both: 'Intro + Outro' }[anim.mode];
+  const seqName = seqOpts.find(o => o.id === (anim.seq || 'auto')).t;
+  const ignoresMode = anim.seq === 'crestLogoCrest' || anim.seq === 'logoOnly';
   return cardWrap('animMode', ICONS.film, 'Tipo de video', `
     <div class="field">
-      <label class="flabel">Modo</label>
+      <label class="flabel">1 · ¿Para qué es el video?</label>
       <div class="seg">
         <button class="${anim.mode==='intro'?'active':''}" data-anim-mode="intro">Intro</button>
         <button class="${anim.mode==='outro'?'active':''}" data-anim-mode="outro">Outro</button>
         <button class="${anim.mode==='both'?'active':''}" data-anim-mode="both">Intro + Outro</button>
       </div>
       <p class="hint">${anim.mode==='intro'
-        ? 'El escudo se revela solo y luego da paso al logotipo completo — al estilo de la Cadena Nacional.'
+        ? '<b>Intro</b>: para abrir un video. Termina con el logo completo armado y fijo.'
         : anim.mode==='outro'
-        ? 'El logotipo completo aparece, pasa al escudo solo y el escudo se desvanece — ideal para el cierre de un video.'
-        : 'Un solo video: la intro, una pausa con el logo completo fijo y el outro. Cada tramo tiene su propia duración en "Duración y resolución".'}</p>
+        ? '<b>Outro</b>: para cerrar un video. Empieza con el logo completo y termina deshaciéndose.'
+        : '<b>Intro + Outro</b>: un solo archivo con apertura y cierre — entra, se mantiene el logo fijo y sale. Cada tramo se ajusta en «Duración y resolución».'}</p>
+      ${ignoresMode ? '<p class="hint"><i>Con el estilo elegido abajo, la secuencia ya viene definida; Intro y Outro solo cambian el resultado en «Clásico» y «Cadena Nacional».</i></p>' : ''}
     </div>
+    <div class="field">
+      <label class="flabel">2 · Estilo de animación</label>
+      ${seqOpts.map(o => `
+      <label class="seq-opt ${(anim.seq||'auto')===o.id?'on':''}">
+        <span class="so-t"><input type="radio" name="animSeqRadio" ${(anim.seq||'auto')===o.id?'checked':''} data-anim-seq="${o.id}"> ${o.t}</span>
+        <span class="so-d" style="display:block">${o.d}</span>
+      </label>
+      ${o.id==='cadena' && anim.seq==='cadena' ? `
+      <div class="seq-sub">
+        <label class="check-row"><input type="checkbox" ${anim.flash!==false?'checked':''} data-anim-flash> <b>Destello al completar el escudo</b></label>
+        <p class="hint" style="margin:4px 0 0;">Una onda delgada se expande y se desvanece cuando el escudo termina de armarse. Opcional.</p>
+      </div>` : ''}`).join('')}
+    </div>
+    <p class="hint" style="margin:0;"><b>Resultado:</b> ${modeName} · ${seqName} · ${anim.durationSec.toFixed(1)} s</p>
   `);
 }
 
@@ -4716,6 +4836,33 @@ function animColorOverrideField(key, title, hint) {
 function animCardEffects() {
   const grid = (attr, cur) => `<div class="fx-grid">${ANIM_FX.map(f =>
     `<button class="fx-btn ${cur===f.id?'active':''}" ${attr}="${f.id}">${f.label}</button>`).join('')}</div>`;
+  if (anim.seq === 'cadena') {
+    const c = Object.assign({}, ANIM_CN_DEFAULT, anim.cn || {});
+    const seg = (key, opts) => `<div class="seg">${opts.map(o => `<button class="${String(c[key])===String(o[0])?'active':''}" data-cn-opt="${key}" data-val="${o[0]}">${o[1]}</button>`).join('')}</div>`;
+    const chk = (key, label, hint) => `<label class="check-row"><input type="checkbox" ${c[key]?'checked':''} data-cn-flag="${key}"> <b>${label}</b></label>${hint ? `<p class="hint" style="margin:2px 0 8px 24px;">${hint}</p>` : ''}`;
+    return cardWrap('animFx', ICONS.film, 'Animaciones · Cadena Nacional', `
+      <p class="hint" style="margin:0;">Arma tu propia versión del estilo. Cada cambio reinicia la vista previa. Los efectos de entrada y salida clásicos no se usan con este estilo.</p>
+      <div class="field"><label class="flabel">Triángulo (primer trazo)</label>
+        ${seg('tri', [['draw', 'Se dibuja'], ['fade', 'Aparece']])}
+        ${chk('tip', 'Punta luminosa al dibujar', '')}</div>
+      <div class="field"><label class="flabel">Emblema (banderas y laureles)</label>
+        ${seg('emblem', [['bloom', 'Florece'], ['zoom', 'Zoom'], ['fade', 'Desvanece']])}</div>
+      <div class="field"><label class="flabel">Estrellas</label>
+        ${seg('stars', [['pop', 'Una por una'], ['spin', 'Barrido'], ['fade', 'Juntas']])}
+        <label class="flabel" style="margin-top:8px;">Sentido</label>
+        ${seg('dir', [[1, 'Horario'], [-1, 'Antihorario']])}</div>
+      <div class="field"><label class="flabel">Animaciones extra</label>
+        ${chk('halo', 'Halo de luz detrás del escudo', 'Brillo suave mientras el escudo se construye.')}
+        ${chk('sparks', 'Chispas desde las estrellas', 'Puntos de luz que salen al completarse el escudo.')}
+        ${chk('glow', 'Resplandor al retroceder', 'El escudo brilla mientras vuelve a su lugar en el logo.')}
+        ${chk('shine', 'Brillo que cruza el logo final', 'Una franja de luz recorre el logo ya armado.')}
+        ${chk('breathe', 'Acercamiento suave al terminar', 'El logo armado crece un poco hasta el final.')}
+      </div>
+      <div class="field"><label class="flabel">Color de luz (halo, chispas, resplandor y brillo)</label>
+        <div class="color-custom-row"><input type="color" value="${c.glowColor}" data-cn-color><input type="text" value="${c.glowColor}" style="width:110px" data-cn-colortext></div></div>
+      <button class="btn ghost" type="button" style="width:100%;justify-content:center;" data-cn-reset>Restablecer animación</button>
+    `);
+  }
   return cardWrap('animFx', ICONS.film, 'Animaciones', `
     <div class="field">
       <label class="flabel">Entrada (cómo aparece)</label>
@@ -4743,15 +4890,6 @@ function animCardContent() {
         <input type="text" value="${anim.crestColor}" style="width:110px" data-anim-prop="crestColorText">
       </div>
       <p class="hint">Afecta el escudo solo (inicio del <b>Intro</b> y final del <b>Outro</b>); el logotipo completo se controla con los dos colores de abajo.</p>
-    </div>
-    <div class="field">
-      <label class="flabel">Secuencia del video</label>
-      <label class="check-row"><input type="checkbox" ${anim.seq==='crestLogoCrest'?'checked':''} data-anim-seq="crestLogoCrest"> <b>Escudo → logo editado → escudo</b></label>
-      <p class="hint">Sale primero el bloque institucional solo con el escudo, después el logo editado, y termina de nuevo con el escudo.</p>
-      <label class="check-row"><input type="checkbox" ${anim.seq==='cadena'?'checked':''} data-anim-seq="cadena"> <b>Estilo Cadena Nacional: institucional + editado</b></label>
-      <p class="hint">El escudo se va construyendo por partes (triángulo, emblema y estrellas), retrocede con un resplandor y se recrea el logo completo con tus bloques editados. En <b>Outro</b> se deshace al revés; en <b>Intro + Outro</b> se construye y se deshace.</p>
-      <label class="check-row"><input type="checkbox" ${anim.seq==='logoOnly'?'checked':''} data-anim-seq="logoOnly"> <b>Solo el logo editado</b></label>
-      <p class="hint">Aparece únicamente el logo editado, sin el escudo solo. Si ambos están apagados, la secuencia depende de <b>Tipo de video</b> (Intro, Outro o Intro + Outro).</p>
     </div>
     ${animColorOverrideField('inst', 'Color del bloque institucional', 'Escudo + "Gobierno de El Salvador" dentro del logotipo completo. Si lo desactivas, usa el color de "Crear Logotipo".')}
     ${animColorOverrideField('logo', 'Color del logo editado', 'Bloques de texto (ministerio, dirección, unidad) y separadores. Si lo desactivas, usa el color de "Crear Logotipo".')}
@@ -4994,6 +5132,23 @@ function animCardExport() {
 /* ---------- Enlaza eventos del panel ---------- */
 function animBindControlEvents() {
   const right = document.getElementById('animRight');
+
+  const cnReplay = () => { animPause(); animCurTime = 0; animRender(); animUpdateTimelineUI(); animPlay(); };
+  right.querySelectorAll('[data-cn-opt]').forEach(el => el.addEventListener('click', () => {
+    anim.cn[el.dataset.cnOpt] = el.dataset.cnOpt === 'dir' ? parseInt(el.dataset.val, 10) : el.dataset.val;
+    renderAnimControls(); cnReplay();
+  }));
+  right.querySelectorAll('[data-cn-flag]').forEach(el => el.addEventListener('change', () => { anim.cn[el.dataset.cnFlag] = el.checked; cnReplay(); }));
+  const cnCol = right.querySelector('[data-cn-color]'), cnTxt = right.querySelector('[data-cn-colortext]');
+  if (cnCol) cnCol.addEventListener('input', () => { anim.cn.glowColor = cnCol.value; cnTxt.value = cnCol.value; animRender(); });
+  if (cnTxt) cnTxt.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(cnTxt.value.trim())) { anim.cn.glowColor = cnTxt.value.trim(); cnCol.value = anim.cn.glowColor; cnReplay(); } });
+  const cnReset = right.querySelector('[data-cn-reset]');
+  if (cnReset) cnReset.addEventListener('click', () => { anim.cn = Object.assign({}, ANIM_CN_DEFAULT); renderAnimControls(); cnReplay(); });
+
+  right.querySelectorAll('[data-anim-flash]').forEach(el => el.addEventListener('change', () => {
+    anim.flash = el.checked;
+    animPause(); animCurTime = 0; animRender(); animUpdateTimelineUI(); animPlay();
+  }));
 
   right.querySelectorAll('[data-anim-seq]').forEach(el => el.addEventListener('change', () => {
     anim.seq = el.checked ? el.dataset.animSeq : 'auto';   // los dos interruptores son excluyentes

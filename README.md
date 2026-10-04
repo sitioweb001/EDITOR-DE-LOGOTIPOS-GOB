@@ -113,23 +113,33 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 
 | Módulo | Opciones |
 |---|---|
-| **Tipo de video** | **Intro**, **Outro** o **Intro + Outro** (un solo video con intro, pausa con el logo fijo y outro) |
+| **Tipo de video** | Paso 1: **Intro**, **Outro** o **Intro + Outro** (un solo video con intro, pausa con el logo fijo y outro). Paso 2: **estilo de animación** (Clásico, Cadena Nacional, Escudo → logo → escudo o Solo el logo editado), con una explicación de cada uno y un resumen del resultado |
 | **Animaciones** | Efectos de entrada y salida (desvanecer, deslizar, zoom, difuso, cortinas, abrir) y el efecto **«Desde el divisor (Cadena Nacional)»**: la línea divisoria crece y de ella salen el escudo y el texto; al salir hacen el recorrido inverso |
-| **Contenido** | Usa automáticamente el logotipo creado en *Crear Logotipo*; **secuencia del video** (interruptores), color del escudo al revelarse y colores del logo completo |
+| **Contenido** | Usa automáticamente el logotipo creado en *Crear Logotipo*; color del escudo al revelarse y colores del logo completo |
 | **Fondo** | Color (paleta o personalizado en HEX), imagen, transparente o croma |
 | **Duración y resolución** | Duración con deslizador; en *Intro + Outro* tres controles independientes: **Intro**, **Pausa con el logo fijo** y **Outro** |
 | **Exportar** | Genera el archivo de video (MP4 si el navegador lo permite; si no, WebM) |
 
-**Secuencia del video (interruptores en *Contenido*, excluyentes entre sí):**
+**Estilo de animación (en *Tipo de video*, paso 2; se elige uno):**
 
 | Interruptor | Resultado |
 |---|---|
 | **Escudo → logo editado → escudo** | Sale primero el escudo solo, luego el logo editado, vuelve el escudo y se despide |
 | **Estilo Cadena Nacional: institucional + editado** | El escudo se construye por partes (triángulo, emblema y anillo de estrellas), retrocede con un resplandor y se recrea el logo completo con los bloques editados |
 | **Solo el logo editado** | Aparece únicamente el logo editado, sin el escudo solo |
-| *(ambos apagados)* | La secuencia depende de *Tipo de video* (Intro, Outro o Intro + Outro) |
+| **Clásico** | El escudo se revela solo y da paso al logo (Intro), o el logo pasa al escudo y se desvanece (Outro) |
 
-**Estilo Cadena Nacional.** Con *Intro* se construye y queda armado el logo; con *Outro* se deshace al revés; con *Intro + Outro* se construye, se mantiene y se deshace. Usa la duración única (se recomiendan 6 s o más) y respeta el tamaño del escudo y del logo de *Medidas*. Si el logo usa una imagen propia en lugar del escudo oficial vectorial, cae en la secuencia «Escudo → logo editado → escudo». El archivo se llama `animacion-cadena-nacional-…`.
+**Estilo Cadena Nacional (personalizable).** Con este estilo el panel *Animaciones* pasa a ser un editor de la animación, con vista previa que se reinicia al cambiar cada opción:
+
+| Parte | Opciones |
+|---|---|
+| Triángulo | Se dibuja / Aparece; punta luminosa |
+| Emblema | Florece / Zoom / Desvanece |
+| Estrellas | Una por una / Barrido / Juntas; sentido horario o antihorario |
+| Animaciones extra | Halo de luz, chispas desde las estrellas, resplandor al retroceder, brillo que cruza el logo final, acercamiento suave final |
+| Color de luz | Un color para halo, chispas, resplandor y brillo |
+
+Hay un botón **Restablecer animación**. Los efectos de entrada y salida clásicos no se usan con este estilo. Incluye un interruptor opcional, **Destello al completar el escudo** (una onda delgada que se expande y se desvanece). Con *Intro* se construye y queda armado el logo; con *Outro* se deshace al revés; con *Intro + Outro* se construye, se mantiene y se deshace. Usa la duración única (se recomiendan 6 s o más) y respeta el tamaño del escudo y del logo de *Medidas*. Si el logo usa una imagen propia en lugar del escudo oficial vectorial, cae en la secuencia «Escudo → logo editado → escudo». El archivo se llama `animacion-cadena-nacional-…`.
 
 **Intro + Outro.** La intro se detiene cuando el logo ya está completo, se mantiene quieto durante la pausa y el outro arranca desde ahí, sin saltos. Con la pausa en 0 s, el logo pasa directo de la intro al outro. Duración total = intro + pausa + outro (hasta 24 s).
 
