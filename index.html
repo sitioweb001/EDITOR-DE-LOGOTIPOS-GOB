@@ -436,6 +436,16 @@ input[type="color"]::-webkit-color-swatch{border-radius:6px;border:none;}
 .modal h3{margin:0 0 8px;font-size:16px;}
 .modal p{margin:0 0 18px;font-size:13px;color:var(--text-dim);line-height:1.5;}
 .modal .mactions{display:flex;gap:8px;justify-content:flex-end;}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff;}
+
+/* Ventana de carga (procesando / exportando) */
+#loading-overlay{position:fixed;inset:0;z-index:500;background:rgba(10,14,22,.6);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:20px;}
+#loading-overlay.show{display:flex;}
+.loading-box{background:var(--panel);border-radius:14px;padding:26px 30px;min-width:260px;max-width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.loading-spinner{width:44px;height:44px;margin:0 auto 14px;border-radius:50%;border:4px solid var(--input-border);border-top-color:var(--accent);animation:ldSpin .8s linear infinite;}
+.loading-box b{display:block;font-size:15px;margin-bottom:4px;}
+.loading-box span{display:block;font-size:12px;color:var(--text-dim);line-height:1.4;}
+@keyframes ldSpin{to{transform:rotate(360deg);}}
 
 .file-drop{
   border:1.5px dashed var(--input-border);border-radius:9px;padding:12px;text-align:center;font-size:11.5px;
@@ -520,6 +530,16 @@ input[type="color"]::-webkit-color-swatch{border-radius:6px;border:none;}
 .wm-obj:hover{outline-color:rgba(49,57,69,.35);}
 .wm-obj.selected{outline:1.5px solid var(--accent);}
 .wm-obj.locked{cursor:not-allowed;}
+.wm-obj.blinking{outline:2px solid #F2FF00;box-shadow:0 0 0 2px rgba(0,0,0,.55);}
+.wm-blink-wrap{position:absolute;inset:0;pointer-events:none;filter:drop-shadow(0 0 2px rgba(0,0,0,.95)) drop-shadow(0 0 6px rgba(0,0,0,.55));animation:wmBlinkWrap 1s steps(1,end) infinite;}
+.wm-blink-layer{position:absolute;inset:0;background:#F2FF00;-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;}
+@keyframes wmBlinkWrap{0%{opacity:1}50%{opacity:0}}
+.wm-blink-text{animation:wmBlinkText 1s steps(1,end) infinite;-webkit-text-stroke:.7px rgba(0,0,0,.75);}
+@keyframes wmBlinkText{0%{color:#F2FF00}50%{color:var(--wm-c)}}
+.wm-quickpos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.wm-quickpos button,.wm-quicksize button{padding:7px 4px;border-radius:8px;border:1px solid var(--panel-border);background:var(--input-bg);color:inherit;font-weight:700;cursor:pointer;}
+.wm-quickpos button:hover,.wm-quicksize button:hover{background:var(--accent-soft);border-color:var(--accent);}
+.wm-quicksize{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
 .wm-obj img, .wm-obj svg{width:100%;height:100%;display:block;pointer-events:none;}
 .wm-obj .wm-text-content{width:100%;height:100%;display:flex;align-items:center;justify-content:center;white-space:pre;pointer-events:none;}
 .wm-handle{
@@ -579,6 +599,14 @@ input[type="color"]::-webkit-color-swatch{border-radius:6px;border:none;}
   border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--text);text-align:left;
 }
 .wm-add-dropdown button:hover{background:var(--input-bg);}
+.wm-add-dropdown .wm-add-label{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-dim);padding:6px 10px 3px;}
+.wm-add-dropdown .wm-add-sep{height:1px;background:var(--panel-border);margin:5px 4px;}
+.wm-add-dropdown button small{display:block;font-size:10.5px;color:var(--text-dim);margin-top:1px;}
+.inst-modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.inst-modes button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 6px;border:1.5px solid var(--input-border);background:var(--input-bg);border-radius:9px;cursor:pointer;font-size:11.5px;font-weight:700;color:var(--text-dim);text-align:center;}
+.inst-modes button:hover{border-color:var(--accent);color:var(--accent);}
+.inst-modes button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+.inst-modes button svg{width:46px;height:30px;}
 .wm-add-dropdown button svg{width:15px;height:15px;color:var(--text-dim);flex-shrink:0;}
 
 .wm-opacity-presets{display:flex;gap:6px;flex-wrap:wrap;}
@@ -913,6 +941,47 @@ function toast(msg, kind = '') {
   setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 250); }, 2600);
 }
 
+/* ---------- Ventana de carga global ---------- */
+function showLoading(title, sub) {
+  let ov = document.getElementById('loading-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'loading-overlay';
+    ov.setAttribute('role', 'alert'); ov.setAttribute('aria-live', 'assertive');
+    ov.innerHTML = '<div class="loading-box"><div class="loading-spinner"></div><b id="loadingTitle"></b><span id="loadingSub"></span></div>';
+    document.body.appendChild(ov);
+  }
+  setLoading(title, sub);
+  ov.classList.add('show');
+}
+function setLoading(title, sub) {
+  const t = document.getElementById('loadingTitle'), u = document.getElementById('loadingSub');
+  if (t && title != null) t.textContent = title;
+  if (u && sub != null) u.textContent = sub;
+}
+function hideLoading() { const ov = document.getElementById('loading-overlay'); if (ov) ov.classList.remove('show'); }
+/* Deja que el navegador pinte la ventana de carga antes de un trabajo pesado */
+function nextPaint() { return new Promise(r => requestAnimationFrame(() => setTimeout(r, 30))); }
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ---------- Ventana de confirmación (aviso antes de una acción) ---------- */
+function askConfirm(title, msg, okLabel, danger) {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay'; ov.style.zIndex = '450';
+    ov.innerHTML = '<div class="modal" role="dialog" aria-modal="true"><h3></h3><p></p><div class="mactions"><button class="btn ghost" data-r="0">Cancelar</button><button class="btn ' + (danger === false ? 'primary' : 'danger') + '" data-r="1"></button></div></div>';
+    ov.querySelector('h3').textContent = title;
+    ov.querySelector('p').textContent = msg;
+    ov.querySelector('[data-r="1"]').textContent = okLabel || 'Aceptar';
+    const done = v => { document.removeEventListener('keydown', onKey, true); ov.remove(); resolve(v); };
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+    document.addEventListener('keydown', onKey, true);
+    ov.addEventListener('click', e => { if (e.target === ov) done(false); const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1'); });
+    document.body.appendChild(ov);
+    ov.querySelector('[data-r="0"]').focus();
+  });
+}
+
 /* Sanea un fragmento SVG externo: elimina scripts, atributos on*, y protocolos peligrosos. */
 function sanitizeSvgString(svgText) {
   const parser = new DOMParser();
@@ -1095,6 +1164,7 @@ function defaultState() {
       captionLetterSpacing: 0,
       captionLineHeight: 1.15,
       captionUppercase: true,
+      showRule: false,          // línea fina entre el escudo y el texto (versión con nombre de ministerio)
     },
     blocks: [
       makeDefaultBlock(2, ''),
@@ -1229,7 +1299,7 @@ function computeLayout() {
     : (CREST_VB.w / CREST_VB.h);
   const orientation = inst.orientation === 'horizontal' ? 'horizontal' : 'vertical';
 
-  let instGraphic, instCaptions, instBlockW;
+  let instGraphic, instCaptions, instBlockW, instRule = null;
 
   if (orientation === 'horizontal') {
     // Versión horizontal del manual (hoja 4): "GOBIERNO DE" | ESCUDO | "EL SALVADOR",
@@ -1260,19 +1330,26 @@ function computeLayout() {
       fontFamily: capFontFamily, fontSize: capFontSize, weight: inst.captionWeight, letterSpacing: capLetterSpacing, color: instColor,
     });
   } else {
-    const graphicH = Math.max(8, instUnitH - capH);
+    const ruleOn = !!(inst.showRule && capLines.length);
+    const ruleGap = ruleOn ? 8 * gScale : 0, ruleTh = ruleOn ? Math.max(1, 1.2 * gScale) : 0;
+    const ruleH = ruleOn ? ruleGap + ruleTh : 0;
+    const graphicH = Math.max(8, instUnitH - capH - ruleH);
     const graphicW = graphicH * graphicRatio;
 
     let capMaxW = 0;
     capLines.forEach(l => { capMaxW = Math.max(capMaxW, measureLineWidth(l, capFontFamily, capFontSize, inst.captionWeight, capLetterSpacing)); });
 
     instBlockW = Math.max(graphicW, capMaxW);
-    const instTotalUnitH = graphicH + capH;
+    const instTotalUnitH = graphicH + ruleH + capH;
     const instUnitY = (compH - instTotalUnitH) / 2;
+    if (ruleOn) {
+      const ruleW = Math.min(instBlockW, Math.max(graphicW * 1.4, capMaxW * 0.45));
+      instRule = { x: (instBlockW - ruleW) / 2, y: instUnitY + graphicH + ruleGap, w: ruleW, h: ruleTh, color: instColor };
+    }
 
     instGraphic = { x: (instBlockW - graphicW) / 2, y: instUnitY, w: graphicW, h: graphicH, color: instColor, useCustom, image: inst.customImage };
     instCaptions = capLines.length ? [{
-      lines: capLines, x: instBlockW / 2, firstY: instUnitY + graphicH + capGap + capFontSize * 0.78,
+      lines: capLines, x: instBlockW / 2, firstY: instUnitY + graphicH + ruleH + capGap + capFontSize * 0.78,
       lineHeight: capLineHeight, textAnchor: 'middle',
       fontFamily: capFontFamily, fontSize: capFontSize, weight: inst.captionWeight, letterSpacing: capLetterSpacing, color: instColor,
     }] : [];
@@ -1281,7 +1358,7 @@ function computeLayout() {
   const layout = {
     compH, gColor,
     inst: { x: 0, y: 0, w: instBlockW, h: compH, color: instColor },
-    instGraphic, instCaptions,
+    instGraphic, instCaptions, instRule,
     dividers: [],
     textBlocks: [],
   };
@@ -1405,6 +1482,7 @@ function svgFromLayout(layout) {
     });
   }
 
+  if (layout.instRule) parts.push(`<rect x="${r2(layout.instRule.x)}" y="${r2(layout.instRule.y)}" width="${r2(layout.instRule.w)}" height="${r2(layout.instRule.h)}" fill="${layout.instRule.color}"/>`);
   layout.dividers.forEach(d => {
     parts.push(`<rect x="${r2(d.x)}" y="${r2(d.y)}" width="${r2(d.w)}" height="${r2(d.h)}" fill="${d.color}"/>`);
   });
@@ -1626,6 +1704,51 @@ function instFontSelectHtml(current) {
   if (state.customFont) opts += `<option value="${CUSTOM_FONT_VALUE}" ${current===CUSTOM_FONT_VALUE?'selected':''}>Personalizada: ${escapeHtml(state.customFont.originalName||'')}</option>`;
   return `<select onchange="updateInstField('captionFont', this.value)">${opts}</select>`;
 }
+/* ---------- Modos del bloque institucional (según las aplicaciones del manual) ---------- */
+function instMode() {
+  const i = state.inst;
+  if (!i.showCaption) return 'crest';
+  if (i.orientation === 'horizontal') return 'horizontal';
+  return i.showRule ? 'ministry' : 'vertical';
+}
+function instModesHtml() {
+  const cur = instMode(), C = 'currentColor';
+  const crest = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(w, h) / 2}" fill="${C}"/>`;
+  const line = (x, y, w) => `<rect x="${x}" y="${y}" width="${w}" height="1.4" fill="${C}"/>`;
+  const icons = {
+    crest: crest(18, 5, 20, 20),
+    horizontal: `${line(2, 14, 10)}${crest(18, 7, 14)}${line(38, 14, 10)}`,
+    vertical: `${crest(20, 2, 14)}${line(8, 20, 38)}${line(14, 25, 26)}`,
+    ministry: `${crest(20, 1, 14)}${line(18, 17, 18)}${line(6, 24, 42)}`,
+  };
+  const labels = { crest: 'Escudo solo', horizontal: 'Horizontal: GOBIERNO DE | escudo | EL SALVADOR', vertical: 'Vertical con leyenda', ministry: 'Escudo + línea + ministerio' };
+  return ['crest', 'horizontal', 'vertical', 'ministry'].map(m =>
+    `<button class="${cur === m ? 'active' : ''}" onclick="setInstMode('${m}')"><svg viewBox="0 0 54 30">${icons[m]}</svg>${labels[m]}</button>`).join('');
+}
+function instModeHint() {
+  return ({
+    crest: 'Solo el escudo con sus estrellas, sin texto debajo.',
+    horizontal: '«GOBIERNO DE» a la izquierda y «EL SALVADOR» a la derecha del escudo (usa la línea 1 y la línea 2 del texto).',
+    vertical: 'Escudo arriba y la leyenda debajo, versión principal del manual.',
+    ministry: 'Escudo, línea fina y el nombre de la institución debajo. Completa el texto más abajo.',
+  })[instMode()];
+}
+function setInstMode(mode) {
+  const i = state.inst;
+  const gob = 'GOBIERNO DE\nEL SALVADOR';
+  const isGob = /^\s*GOBIERNO DE\s*\n\s*EL SALVADOR\s*$/i.test(i.caption || '');
+  if (mode === 'crest') { i.showCaption = false; i.orientation = 'vertical'; i.showRule = false; }
+  else if (mode === 'horizontal') {
+    i.showCaption = true; i.orientation = 'horizontal'; i.showRule = false;
+    if (!/\n/.test((i.caption || '').trim())) i.caption = gob;
+  }
+  else if (mode === 'vertical') { i.showCaption = true; i.orientation = 'vertical'; i.showRule = false; if (!(i.caption || '').trim()) i.caption = gob; }
+  else if (mode === 'ministry') {
+    i.showCaption = true; i.orientation = 'vertical'; i.showRule = true;
+    if (!(i.caption || '').trim() || isGob) i.caption = 'MINISTERIO DE';
+  }
+  renderControls(); renderPreview();
+}
 function updateInstField(field, value) {
   state.inst[field] = value;
   renderPreview();
@@ -1688,6 +1811,12 @@ function renderInstitutionalCard() {
     </div>
 
     <div class="field">
+      <label class="flabel">Modo del logo (Manual de Marca)</label>
+      <div class="inst-modes">${instModesHtml()}</div>
+      <p class="hint">${instModeHint()}</p>
+    </div>
+
+    <div class="field">
       <label class="flabel">Orientación (Manual de Marca)</label>
       <div class="seg">
         <button class="${inst.orientation!=='horizontal'?'active':''}" onclick="updateInstField('orientation','vertical'); renderControls();">Vertical</button>
@@ -1719,6 +1848,10 @@ function renderInstitutionalCard() {
       <input type="checkbox" ${inst.showCaption ? 'checked' : ''} onchange="updateInstField('showCaption', this.checked); renderControls();">
       Mostrar este texto
     </label>
+    ${inst.showCaption && inst.orientation !== 'horizontal' ? `<label class="check-row">
+      <input type="checkbox" ${inst.showRule ? 'checked' : ''} onchange="updateInstField('showRule', this.checked); renderControls();">
+      Línea fina entre el escudo y el texto
+    </label>` : ''}
     ${inst.showCaption ? `
     <div class="field-row">
       <div class="field">
@@ -2385,6 +2518,7 @@ async function drawLayoutToCanvas(layout, scale) {
     });
   }
 
+  if (layout.instRule) { ctx.fillStyle = layout.instRule.color; ctx.fillRect(layout.instRule.x, layout.instRule.y, layout.instRule.w, layout.instRule.h); }
   layout.dividers.forEach(d => { ctx.fillStyle = d.color; ctx.fillRect(d.x, d.y, d.w, d.h); });
 
   for (const tb of layout.textBlocks) {
@@ -2689,7 +2823,7 @@ const WM_PDF_FONTS = [
 
 function wmMakeObject(kind, extra) {
   const n = wm.objects.length + 1;
-  return Object.assign({
+  const o = Object.assign({
     id: uid(),
     name: kind === 'official' ? 'Gobierno de El Salvador' : kind === 'text' ? `Texto ${n}` : `Imagen ${n}`,
     kind,
@@ -2703,7 +2837,23 @@ function wmMakeObject(kind, extra) {
     color: '#313945', letterSpacing: 0,
     image: null,
   }, extra || {});
+  /* Si no se indica posición, el objeto nace centrado en la página (antes nacía arriba a la derecha) */
+  if (!extra || extra.xFrac === undefined) o.xFrac = (1 - o.wFrac) / 2;
+  if (!extra || extra.yFrac === undefined) o.yFrac = (1 - o.hFrac) / 2;
+  return o;
 }
+
+/* ---- Parpadeo de ayuda (solo vista previa): alterna amarillo fluorescente <-> color preestablecido ---- */
+wm.blinkEnabled = true; wm.blink = null;
+function wmIsBlinking(obj) { return wm.blinkEnabled !== false && wm.blink && wm.blink.id === obj.id && Date.now() < wm.blink.until && !obj.hidden; }
+function wmStartBlink(id, ms) {
+  if (wm.blinkEnabled === false) return;
+  wm.blink = { id, until: Date.now() + (ms || 8000) };
+  clearTimeout(wm._bt);
+  wm._bt = setTimeout(() => { wm.blink = null; wmRenderOverlay(); }, (ms || 8000) + 60);
+  wmRenderOverlay();
+}
+function wmStopBlink() { if (wm.blink) { wm.blink = null; clearTimeout(wm._bt); } }
 
 /* ========================================================================
    CONSTRUCCIÓN DEL SHELL (HTML dinámico, todo dentro de esta función para
@@ -2756,7 +2906,12 @@ function initWatermarkTool() {
           <div class="wm-add-menu">
             <button class="btn primary" id="wmAddBtn">${ICONS.plus} Agregar marca de agua</button>
             <div class="wm-add-dropdown" id="wmAddDropdown">
-              <button onclick="wmAddOfficialLogo()">${ICONS.shield} Escudo Gobierno de El Salvador</button>
+              <div class="wm-add-label">Escudo oficial (según manual)</div>
+              <button onclick="wmAddOfficial('crest')">${ICONS.shield}<span>Escudo solo<small>Centrado en la página</small></span></button>
+              <button onclick="wmAddOfficial('horizontal')">${ICONS.shield}<span>Escudo + «Gobierno de El Salvador»<small>Horizontal: GOBIERNO DE | escudo | EL SALVADOR</small></span></button>
+              <button onclick="wmAddOfficial('vertical')">${ICONS.shield}<span>Escudo + texto vertical<small>Escudo arriba, leyenda debajo</small></span></button>
+              <button onclick="wmAddOfficial('bleed')">${ICONS.shield}<span>Escudo grande de fondo<small>Alineado a la derecha · alto de hoja carta</small></span></button>
+              <div class="wm-add-sep"></div>
               <button onclick="wmTriggerImageUpload()">${ICONS.upload} Subir SVG o PNG</button>
               <button onclick="wmAddText()">${ICONS.type} Agregar texto</button>
             </div>
@@ -2809,6 +2964,30 @@ function wmBindUploadZone() {
 }
 
 async function wmLoadPdfFile(file) {
+  showLoading('Cargando PDF…', 'Leyendo el documento y generando las vistas previas');
+  await nextPaint();
+  try { await wmLoadPdfFileInner(file); } finally { hideLoading(); }
+}
+
+/* Botón «Usar otro PDF»: reemplaza el documento actual por uno nuevo */
+async function wmPickAnotherPdf() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.pdf,application/pdf'; input.style.display = 'none';
+  input.addEventListener('change', async () => {
+    const f = input.files && input.files[0];
+    input.remove();
+    if (!f) return;
+    if (wm.objects.length) {
+      const ok = await askConfirm('¿Usar otro PDF?', 'Se reemplazará el documento actual y se perderán las marcas de agua colocadas en él.', 'Sí, usar otro PDF');
+      if (!ok) return;
+    }
+    wmLoadPdfFile(f);
+  });
+  document.body.appendChild(input);
+  input.click();
+}
+
+async function wmLoadPdfFileInner(file) {
   if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
     toast('Selecciona un archivo PDF válido', 'err'); return;
   }
@@ -2848,6 +3027,7 @@ async function wmLoadPdfFile(file) {
   document.getElementById('wmPageInput').max = wm.numPages;
   document.getElementById('wmPageInput').value = 1;
 
+  setLoading('Cargando PDF…', 'Generando miniaturas y vista de la página');
   await wmRenderThumbnails();
   await wmRenderCurrentPage();
 
@@ -2860,8 +3040,11 @@ async function wmLoadPdfFile(file) {
   toast(`PDF cargado: ${wm.pdfName} (${wm.numPages} página${wm.numPages === 1 ? '' : 's'})`, 'ok');
 }
 
-function wmResetDocument() {
-  if (!confirm('¿Quitar el documento actual? Se perderán las marcas de agua colocadas.')) return;
+async function wmResetDocument() {
+  const ok = await askConfirm('¿Quitar el documento?', 'Se quitará el PDF actual y se perderán las marcas de agua colocadas.', 'Sí, quitar');
+  if (!ok) return;
+  showLoading('Quitando documento…', 'Un momento, por favor');
+  await nextPaint();
   wm.pdfBytes = null; wm.pdfDoc = null; wm.pdfName = '';
   wm.numPages = 0; wm.pageSizes = []; wm.pageRotations = [];
   wm.currentPage = 1; wm.objects = []; wm.selectedId = null;
@@ -2877,6 +3060,9 @@ function wmResetDocument() {
     </div>`;
   wmBindUploadZone();
   wmRenderRightPanel();
+  await wait(350);
+  hideLoading();
+  toast('Documento quitado', 'ok');
 }
 
 /* ---------- Miniaturas ---------- */
@@ -2885,7 +3071,8 @@ async function wmRenderThumbnails() {
   left.innerHTML = `
     <div class="wm-doc-name">${escapeHtml(wm.pdfName)}</div>
     <div id="wmThumbsList" style="display:flex;flex-direction:column;gap:8px;"></div>
-    <button class="btn ghost" style="width:100%;justify-content:center;margin-top:6px;" onclick="wmResetDocument()">${ICONS.trash} Quitar documento</button>
+    <button class="btn" style="width:100%;justify-content:center;margin-top:6px;" onclick="wmPickAnotherPdf()">${ICONS.fileUp} Usar otro PDF</button>
+    <button class="btn ghost" style="width:100%;justify-content:center;" onclick="wmResetDocument()">${ICONS.trash} Quitar documento</button>
   `;
   const list = document.getElementById('wmThumbsList');
   for (let i = 1; i <= wm.numPages; i++) {
@@ -3056,7 +3243,9 @@ function wmRenderOverlay() {
     el.style.top = rect.top + 'px';
     el.style.width = rect.width + 'px';
     el.style.height = rect.height + 'px';
-    el.style.opacity = clamp(g.opacity, 0, 100) / 100;
+    const blinking = wmIsBlinking(obj);
+    el.style.opacity = blinking ? 1 : clamp(g.opacity, 0, 100) / 100;
+    if (blinking) el.classList.add('blinking');
     el.style.transform = `rotate(${obj.rotation || 0}deg)`;
     el.dataset.id = obj.id;
 
@@ -3069,6 +3258,7 @@ function wmRenderOverlay() {
       div.style.fontWeight = obj.bold ? '700' : '400';
       div.style.fontStyle = obj.italic ? 'italic' : 'normal';
       div.style.color = obj.color;
+      if (blinking) { div.style.setProperty('--wm-c', obj.color); div.classList.add('wm-blink-text'); }
       div.style.letterSpacing = (obj.letterSpacing || 0) + 'px';
       div.style.fontSize = Math.max(6, rect.height * 0.7) + 'px';
       div.style.lineHeight = '1';
@@ -3084,6 +3274,15 @@ function wmRenderOverlay() {
       }
     }
 
+    if (blinking && obj.kind !== 'text' && obj.image) {
+      const mUrl = obj.image.kind === 'svg'
+        ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${obj.image.viewBox}" preserveAspectRatio="none" width="100%" height="100%">${obj.image.innerMarkup}</svg>`)
+        : obj.image.dataUrl;
+      const wrap = document.createElement('div'); wrap.className = 'wm-blink-wrap';
+      const layer = document.createElement('div'); layer.className = 'wm-blink-layer';
+      layer.style.webkitMaskImage = layer.style.maskImage = `url("${mUrl}")`;
+      wrap.appendChild(layer); el.appendChild(wrap);
+    }
     if (obj.isProtectedLogo) {
       const badge = document.createElement('div');
       badge.className = 'wm-protected-badge';
@@ -3095,19 +3294,20 @@ function wmRenderOverlay() {
       ['nw', 'ne', 'sw', 'se'].forEach(corner => {
         const h = document.createElement('div');
         h.className = 'wm-handle ' + corner;
-        h.addEventListener('pointerdown', (e) => wmStartResize(e, obj, corner));
+        h.addEventListener('pointerdown', (e) => { wmStopBlink(); wmStartResize(e, obj, corner); });
         el.appendChild(h);
       });
       if (!obj.isProtectedLogo) {
         const line = document.createElement('div'); line.className = 'wm-rot-line'; el.appendChild(line);
         const rh = document.createElement('div'); rh.className = 'wm-handle rot';
-        rh.addEventListener('pointerdown', (e) => wmStartRotate(e, obj));
+        rh.addEventListener('pointerdown', (e) => { wmStopBlink(); wmStartRotate(e, obj); });
         el.appendChild(rh);
       }
     }
 
     el.addEventListener('pointerdown', (e) => {
       if (e.target.classList.contains('wm-handle')) return;
+      wmStopBlink();
       wmSelectObject(obj.id);
       if (!obj.locked) wmStartDrag(e, obj);
     });
@@ -3311,122 +3511,112 @@ document.addEventListener('DOMContentLoaded', () => {});
 /* ========================================================================
    AGREGAR / ELIMINAR / DUPLICAR OBJETOS
    ======================================================================== */
-async function wmGetOfficialLogoRaster() {
-  if (wmOfficialLogo) return wmOfficialLogo;
-  const targetW = 900;
-  const targetH = Math.round(targetW * (FULL_LOCKUP_VB.h / FULL_LOCKUP_VB.w));
-  const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${targetW}" height="${targetH}" viewBox="0 0 ${FULL_LOCKUP_VB.w} ${FULL_LOCKUP_VB.h}"><g fill="#313945">${ESCUDO_PATHS}</g></svg>`;
-  const img = await loadSvgImage(svgStr);
-  const canvas = document.createElement('canvas');
-  canvas.width = targetW; canvas.height = targetH;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, targetW, targetH);
-  const dataUrl = canvas.toDataURL('image/png');
-  wmOfficialLogo = { dataUrl, naturalW: targetW, naturalH: targetH };
-  return wmOfficialLogo;
+const WM_OFFICIAL_COLOR = '#313945';
+let wmOfficialCache = {};
+function wmRasterFromSvg(svgStr, w, h) {
+  return loadSvgImage(svgStr).then(img => {
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    return { canvas, dataUrl: canvas.toDataURL('image/png'), naturalW: w, naturalH: h };
+  });
+}
+/* Variantes: 'vertical' (escudo + leyenda debajo), 'crest' (solo escudo con estrellas),
+   'horizontal' (GOBIERNO DE | escudo | EL SALVADOR), 'bleed' (escudo grande recortado para el borde) */
+async function wmGetOfficialLogoRaster(variant) {
+  variant = variant || 'vertical';
+  if (wmOfficialCache[variant]) return wmOfficialCache[variant];
+  const C = WM_OFFICIAL_COLOR, VB = CREST_VB;
+  let r;
+  if (variant === 'crest') {
+    const w = 900, h = Math.round(w * VB.h / VB.w);
+    r = await wmRasterFromSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${VB.minX} ${VB.minY} ${VB.w} ${VB.h}"><g fill="${C}">${ESCUDO_PATHS}</g></svg>`, w, h);
+  } else if (variant === 'bleed') {
+    /* Escudo grande; se conserva la mitad izquierda del escudo; pegado al borde derecho, su centro queda sobre el borde de la hoja, como en el manual */
+    const fw = 1500, fh = Math.round(fw * VB.h / VB.w), cw = Math.round(fw * 0.5);
+    const full = await wmRasterFromSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${fw}" height="${fh}" viewBox="${VB.minX} ${VB.minY} ${VB.w} ${VB.h}"><g fill="${C}">${ESCUDO_PATHS}</g></svg>`, fw, fh);
+    const canvas = document.createElement('canvas'); canvas.width = cw; canvas.height = fh;
+    canvas.getContext('2d').drawImage(full.canvas, 0, 0, cw, fh, 0, 0, cw, fh);
+    r = { dataUrl: canvas.toDataURL('image/png'), naturalW: cw, naturalH: fh };
+  } else if (variant === 'horizontal') {
+    const H = 200, crestW = H * VB.w / VB.h, fs = 31, gap = 20, ff = 'Georgia, "Times New Roman", Times, serif';
+    const lw = measureLineWidth('GOBIERNO DE', ff, fs, 400, 0.6), rw = measureLineWidth('EL SALVADOR', ff, fs, 400, 0.6);
+    const W = Math.ceil(lw + gap + crestW + gap + rw), k = 4, base = H / 2 + fs * 0.35;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W * k}" height="${H * k}" viewBox="0 0 ${W} ${H}">` +
+      `<text x="${lw}" y="${base}" text-anchor="end" font-family='${ff}' font-size="${fs}" letter-spacing="0.6" fill="${C}">GOBIERNO DE</text>` +
+      `<svg x="${lw + gap}" y="0" width="${crestW}" height="${H}" viewBox="${VB.minX} ${VB.minY} ${VB.w} ${VB.h}" style="overflow:hidden"><g fill="${C}">${ESCUDO_PATHS}</g></svg>` +
+      `<text x="${lw + gap + crestW + gap}" y="${base}" text-anchor="start" font-family='${ff}' font-size="${fs}" letter-spacing="0.6" fill="${C}">EL SALVADOR</text></svg>`;
+    r = await wmRasterFromSvg(svg, W * k, H * k);
+  } else {
+    const targetW = 900, targetH = Math.round(targetW * (FULL_LOCKUP_VB.h / FULL_LOCKUP_VB.w));
+    r = await wmRasterFromSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${targetW}" height="${targetH}" viewBox="0 0 ${FULL_LOCKUP_VB.w} ${FULL_LOCKUP_VB.h}"><g fill="${C}">${ESCUDO_PATHS}</g></svg>`, targetW, targetH);
+    wmOfficialLogo = { dataUrl: r.dataUrl, naturalW: r.naturalW, naturalH: r.naturalH };
+  }
+  wmOfficialCache[variant] = { dataUrl: r.dataUrl, naturalW: r.naturalW, naturalH: r.naturalH };
+  return wmOfficialCache[variant];
 }
 
-async function wmAddOfficialLogo() {
+const WM_OFFICIAL_PRESETS = {
+  crest:      { name: 'Escudo (centrado)',                   hFrac: 0.34, maxW: 0.7,  place: 'center', msg: 'Escudo solo agregado al centro de la página' },
+  horizontal: { name: 'Escudo + Gobierno de El Salvador (horizontal)', hFrac: 0.12, maxW: 0.7, place: 'center', msg: 'Logo horizontal agregado al centro' },
+  vertical:   { name: 'Gobierno de El Salvador (vertical)',  hFrac: 0.34, maxW: 0.8,  place: 'center', msg: 'Escudo con leyenda agregado al centro' },
+  bleed:      { name: 'Escudo de fondo (derecha, hoja completa)', hFrac: 0.96, maxW: 0.8, place: 'right-edge', msg: 'Escudo de fondo agregado a la derecha, a todo el alto de la hoja' },
+};
+
+async function wmAddOfficial(variant) {
   document.getElementById('wmAddDropdown').classList.remove('open');
   if (!wm.pdfDoc) { toast('Primero sube un documento PDF', 'err'); return; }
-  const raster = await wmGetOfficialLogoRaster();
+  const pr = WM_OFFICIAL_PRESETS[variant] || WM_OFFICIAL_PRESETS.vertical;
+  showLoading('Preparando escudo…', 'Generando el logo oficial');
+  await nextPaint();
+  let raster;
+  try { raster = await wmGetOfficialLogoRaster(variant); }
+  catch (e) { console.error(e); hideLoading(); toast('No se pudo generar el escudo', 'err'); return; }
+  hideLoading();
   const ratio = raster.naturalW / raster.naturalH;
-  const hFrac = 0.16;
   const size = wm.pageSizes[wm.currentPage - 1];
-  const wFrac = (hFrac * size.h * ratio) / size.w;
-  const obj = wmMakeObject('official', {
+  let hFrac = pr.hFrac;
+  let wFrac = (hFrac * size.h * ratio) / size.w;
+  if (wFrac > pr.maxW) { wFrac = pr.maxW; hFrac = (wFrac * size.w) / (size.h * ratio); }
+  const extra = {
     image: { kind: 'raster', dataUrl: raster.dataUrl, naturalW: raster.naturalW, naturalH: raster.naturalH },
-    wFrac, hFrac, opacity: BRAND.watermarkOpacityPercent,
-  });
+    wFrac, hFrac, opacity: BRAND.watermarkOpacityPercent, name: pr.name, variant,
+  };
+  if (pr.place === 'left') { extra.xFrac = 0.06; extra.yFrac = (1 - hFrac) / 2; }
+  else if (pr.place === 'right-edge') { extra.xFrac = 1 - wFrac; extra.yFrac = (1 - hFrac) / 2; }
+  const obj = wmMakeObject('official', extra);
   wm.objects.push(obj);
   wmSelectObject(obj.id);
   wmPushHistory();
-  toast('Escudo institucional agregado (5% de opacidad, según el manual)', 'ok');
+  wmStartBlink(obj.id, 8000);
+  toast(pr.msg + ' · el PDF sale con 5 % de opacidad, según el manual', 'ok');
 }
-
-function wmTriggerImageUpload() {
-  document.getElementById('wmAddDropdown').classList.remove('open');
-  if (!wm.pdfDoc) { toast('Primero sube un documento PDF', 'err'); return; }
-  document.getElementById('wmImageInput').click();
-}
-
-function wmToggleCustomFontSection() { wmCustomFontSectionOpen = !wmCustomFontSectionOpen; wmRenderRightPanel(); }
-
-async function wmHandleCustomFontUpload(evt) {
-  const file = evt.target.files && evt.target.files[0];
-  if (!file) return;
-  if (!/\.(ttf|otf|woff)$/i.test(file.name)) { toast('Formato no soportado. Usa .ttf, .otf o .woff', 'err'); evt.target.value = ''; return; }
-  try {
-    const bytes = await file.arrayBuffer();
-    const family = 'WmCustomFont_' + uid();
-    const fontFace = new FontFace(family, bytes);
-    await fontFace.load();
-    document.fonts.add(fontFace);
-    wmCustomFont = { originalName: file.name, family, bytes };
-    const sel = wm.objects.find(o => o.id === wm.selectedId);
-    if (sel && sel.kind === 'text') sel.fontId = 'custom';
-    wmRenderOverlay();
-    wmRenderRightPanel();
-    toast('Fuente personalizada cargada: ' + file.name, 'ok');
-  } catch (e) {
-    console.error(e);
-    toast('No se pudo cargar la fuente (¿el archivo está dañado?)', 'err');
-  }
-  evt.target.value = '';
-}
-
-async function wmHandleImageUpload(file) {
-  const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
-  const isRaster = /^image\/(png|jpe?g)$/.test(file.type) || /\.(png|jpe?g)$/i.test(file.name);
-  if (!isSvg && !isRaster) { toast('Formato no soportado. Usa SVG, PNG o JPG', 'err'); return; }
-
-  if (isSvg) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const root = sanitizeSvgString(reader.result);
-      if (!root) { toast('El SVG no es válido', 'err'); return; }
-      let vb = root.getAttribute('viewBox'); let w, h;
-      if (vb) { const p = vb.trim().split(/[\s,]+/).map(Number); w = p[2]; h = p[3]; }
-      else { w = parseFloat(root.getAttribute('width')) || 300; h = parseFloat(root.getAttribute('height')) || 300; vb = `0 0 ${w} ${h}`; }
-      wmAddImageObject({ kind: 'svg', innerMarkup: root.innerHTML, viewBox: vb, naturalW: w, naturalH: h }, file.name);
-    };
-    reader.onerror = () => toast('Error al leer el SVG', 'err');
-    reader.readAsText(file);
-  } else {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const img = new Image();
-      img.onload = () => wmAddImageObject({ kind: 'raster', dataUrl, naturalW: img.naturalWidth, naturalH: img.naturalHeight }, file.name);
-      img.onerror = () => toast('No se pudo leer la imagen', 'err');
-      img.src = dataUrl;
-    };
-    reader.onerror = () => toast('Error al leer el archivo', 'err');
-    reader.readAsDataURL(file);
-  }
-}
+function wmAddOfficialLogo() { return wmAddOfficial('vertical'); }
 
 function wmAddImageObject(image, originalName) {
   if (!wm.pdfDoc) { toast('Primero sube un documento PDF', 'err'); return; }
   const ratio = image.naturalW / image.naturalH;
-  const hFrac = 0.14;
   const size = wm.pageSizes[wm.currentPage - 1];
-  const wFrac = (hFrac * size.h * ratio) / size.w;
+  let hFrac = 0.3;
+  let wFrac = (hFrac * size.h * ratio) / size.w;
+  if (wFrac > 0.7) { wFrac = 0.7; hFrac = (wFrac * size.w) / (size.h * ratio); }
   const obj = wmMakeObject('svg', { image, wFrac, hFrac, name: originalName || 'Logo', opacity: 30 });
   obj.kind = image.kind === 'svg' ? 'svg' : 'raster';
   wm.objects.push(obj);
   wmSelectObject(obj.id);
   wmPushHistory();
+  wmStartBlink(obj.id, 8000);
   toast('Imagen agregada como marca de agua', 'ok');
 }
 
 function wmAddText() {
   document.getElementById('wmAddDropdown').classList.remove('open');
   if (!wm.pdfDoc) { toast('Primero sube un documento PDF', 'err'); return; }
-  const obj = wmMakeObject('text', { wFrac: 0.4, hFrac: 0.08, opacity: 30 });
+  const obj = wmMakeObject('text', { wFrac: 0.5, hFrac: 0.09, opacity: 30 });
   wm.objects.push(obj);
   wmSelectObject(obj.id);
   wmPushHistory();
+  wmStartBlink(obj.id, 8000);
 }
 
 function wmDuplicateObject(id) {
@@ -3476,6 +3666,12 @@ function wmToggleLocked(id) {
 /* ---------- Centrar ---------- */
 function wmCenterH(obj) { const g = wmResolvedGeom(obj, wm.currentPage); wmSetResolvedGeom(obj, wm.currentPage, { xFrac: (1 - g.wFrac) / 2 }); wmRenderOverlay(); wmRenderRightPanel(); wmPushHistory(); }
 function wmCenterV(obj) { const g = wmResolvedGeom(obj, wm.currentPage); wmSetResolvedGeom(obj, wm.currentPage, { yFrac: (1 - g.hFrac) / 2 }); wmRenderOverlay(); wmRenderRightPanel(); wmPushHistory(); }
+function wmAlignX(obj, where) {
+  const g = wmResolvedGeom(obj, wm.currentPage), m = 0.05;
+  const x = where === 'l' ? m : where === 'r' ? 1 - g.wFrac - m : (1 - g.wFrac) / 2;
+  wmSetResolvedGeom(obj, wm.currentPage, { xFrac: x });
+  wmRenderOverlay(); wmRenderRightPanel(); wmPushHistory();
+}
 function wmCenterPage(obj) { const g = wmResolvedGeom(obj, wm.currentPage); wmSetResolvedGeom(obj, wm.currentPage, { xFrac: (1 - g.wFrac) / 2, yFrac: (1 - g.hFrac) / 2 }); wmRenderOverlay(); wmRenderRightPanel(); wmPushHistory(); }
 
 /* ========================================================================
@@ -3581,6 +3777,24 @@ function wmPropertiesHtml(o) {
 
     ${o.kind === 'text' ? wmTextPropsHtml(o) : ''}
 
+    <div class="field">
+      <label class="flabel">Ubicación rápida</label>
+      <div class="wm-quickpos">
+        ${[['0,0', '↖'], ['0.5,0', '↑'], ['1,0', '↗'], ['0,0.5', '←'], ['0.5,0.5', '● Centro'], ['1,0.5', '→'], ['0,1', '↙'], ['0.5,1', '↓'], ['1,1', '↘']].map(([v, t]) => `<button data-quickpos="${v}" title="Ubicar en la página" ${o.locked ? 'disabled' : ''}>${t}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field">
+      <label class="flabel">Tamaño rápido (ancho de la página)</label>
+      <div class="wm-quicksize">
+        ${[25, 40, 60, 80].map(v => `<button data-wsize="${v / 100}" ${o.locked ? 'disabled' : ''}>${v}%</button>`).join('')}
+      </div>
+    </div>
+    <div class="field">
+      <label class="check-row"><input type="checkbox" ${wm.blinkEnabled !== false ? 'checked' : ''} data-blinktoggle="1"> Parpadeo de ayuda (solo en pantalla)</label>
+      <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px;" data-action="blink">Resaltar ahora</button>
+      <p class="hint" style="margin-top:6px;">${g.opacity <= 10 ? 'Con ' + g.opacity + '% la marca casi no se ve: es lo normal para una marca de agua. El parpadeo (amarillo ↔ color original) te ayuda a ubicarla; el PDF sale con la opacidad real.' : 'El parpadeo solo se ve en pantalla; el PDF sale con la opacidad real.'}</p>
+    </div>
+
     <div class="field-row">
       <div class="field">
         <label class="flabel">Posición X <span class="val">${Math.round(g.xFrac * 100)}%</span></label>
@@ -3623,10 +3837,12 @@ function wmPropertiesHtml(o) {
 
     <label class="check-row"><input type="checkbox" ${o.locked ? 'checked' : ''} data-prop="locked"> Bloquear objeto</label>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn ghost" data-action="center-h">Centrar horizontal</button>
-      <button class="btn ghost" data-action="center-v">Centrar vertical</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <button class="btn ghost" data-action="align-left">⇤ Izquierda</button>
+      <button class="btn ghost" data-action="center-h">↔ Centro</button>
+      <button class="btn ghost" data-action="align-right">Derecha ⇥</button>
     </div>
+    <button class="btn ghost" style="width:100%;justify-content:center;" data-action="center-v">Centrar vertical</button>
     <button class="btn ghost" style="width:100%;justify-content:center;" data-action="center-page">Centrar en página</button>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <button class="btn ghost" data-action="duplicate" ${isProtected ? 'disabled' : ''}>${ICONS.copy} Duplicar</button>
@@ -3729,6 +3945,8 @@ function wmExportHtml() {
         <button class="btn ghost" style="flex:1;justify-content:center;" id="wmSaveProjectBtn">Guardar proyecto</button>
         <button class="btn ghost" style="flex:1;justify-content:center;" id="wmLoadProjectBtn">Cargar proyecto</button>
       </div>
+      <button class="btn ghost" style="width:100%;justify-content:center;" id="wmResetProjectBtn">${ICONS.rotate} Restablecer</button>
+      <p class="hint">Restablecer quita todas las marcas de agua y las rotaciones de página; el PDF cargado se conserva. Se pedirá confirmación antes.</p>
       <p class="hint">El proyecto guarda la configuración de las marcas de agua (no el PDF en sí); deberás volver a subir el mismo PDF al cargarlo.</p>
     </div>`;
 }
@@ -3776,10 +3994,34 @@ function wmBindRightPanelEvents(sel) {
     wmRenderOverlay(); wmRenderRightPanel(); wmPushHistory();
   }));
 
+  right.querySelectorAll('[data-quickpos]').forEach(el => el.addEventListener('click', () => {
+    if (sel.locked) return;
+    const [px, py] = el.dataset.quickpos.split(',').map(Number), g = wmResolvedGeom(sel, wm.currentPage), M = 0.04;
+    const x = px === 0 ? M : px === 1 ? 1 - g.wFrac - M : (1 - g.wFrac) / 2;
+    const y = py === 0 ? M : py === 1 ? 1 - g.hFrac - M : (1 - g.hFrac) / 2;
+    wmSetResolvedGeom(sel, wm.currentPage, { xFrac: x, yFrac: y });
+    wmRenderOverlay(); wmRenderRightPanel(); wmPushHistory();
+  }));
+  right.querySelectorAll('[data-wsize]').forEach(el => el.addEventListener('click', () => {
+    if (sel.locked) return;
+    const g = wmResolvedGeom(sel, wm.currentPage), size = wm.pageSizes[wm.currentPage - 1];
+    const ratio = (g.wFrac * size.w) / (g.hFrac * size.h);
+    let wf = parseFloat(el.dataset.wsize), hf = (wf * size.w) / ratio / size.h;
+    if (hf > 1) { hf = 1; wf = (hf * size.h * ratio) / size.w; }
+    const cx = g.xFrac + g.wFrac / 2, cy = g.yFrac + g.hFrac / 2;
+    wmSetResolvedGeom(sel, wm.currentPage, { wFrac: wf, hFrac: hf, xFrac: cx - wf / 2, yFrac: cy - hf / 2 });
+    wmRenderOverlay(); wmRenderRightPanel(); wmPushHistory();
+  }));
+  const bt = right.querySelector('[data-blinktoggle]');
+  if (bt) bt.addEventListener('change', () => { wm.blinkEnabled = bt.checked; if (bt.checked) wmStartBlink(sel.id, 6000); else { wmStopBlink(); wmRenderOverlay(); } });
+
   right.querySelectorAll('[data-action]').forEach(el => el.addEventListener('click', () => {
     const action = el.dataset.action;
+    if (action === 'blink') { wm.blinkEnabled = true; wmStartBlink(sel.id, 6000); return; }
     if (action === 'center-h') wmCenterH(sel);
     else if (action === 'center-v') wmCenterV(sel);
+    else if (action === 'align-left') wmAlignX(sel, 'l');
+    else if (action === 'align-right') wmAlignX(sel, 'r');
     else if (action === 'center-page') wmCenterPage(sel);
     else if (action === 'duplicate') wmDuplicateObject(sel.id);
     else if (action === 'delete') wmDeleteObject(sel.id);
@@ -3792,6 +4034,8 @@ function wmBindRightPanelEvents(sel) {
   if (saveBtn) saveBtn.addEventListener('click', wmSaveProject);
   const loadBtn = document.getElementById('wmLoadProjectBtn');
   if (loadBtn) loadBtn.addEventListener('click', wmLoadProject);
+  const resetBtn = document.getElementById('wmResetProjectBtn');
+  if (resetBtn) resetBtn.addEventListener('click', wmResetProject);
 }
 
 function wmApplyPropChange(obj, prop, el) {
@@ -3898,7 +4142,8 @@ function wmDrawSpacedText(page, text, anchorX, anchorY, fontSize, font, color, o
 async function wmExportPdf() {
   if (!wm.pdfBytes) { toast('No hay documento cargado', 'err'); return; }
   if (wm.objects.length === 0) { toast('Agrega al menos una marca de agua antes de exportar', 'err'); return; }
-  toast('Generando PDF…', '');
+  showLoading('Exportando PDF…', 'Aplicando las marcas de agua, esto puede tardar unos segundos');
+  await nextPaint();
   try {
     const { PDFDocument, StandardFonts, rgb, degrees } = PDFLib;
     const doc = await PDFDocument.load(wm.pdfBytes);
@@ -4008,6 +4253,8 @@ async function wmExportPdf() {
   } catch (e) {
     console.error(e);
     toast('Ocurrió un error al generar el PDF', 'err');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -4017,6 +4264,24 @@ async function wmExportPdf() {
    configuración de las marcas de agua, según lo indicado en la especificación.
    ======================================================================== */
 const WM_PROJECT_KEY = 'marcaAguaProject_v1';
+async function wmResetProject() {
+  if (!wm.pdfDoc) { toast('No hay documento cargado', 'err'); return; }
+  const ok = await askConfirm('¿Restablecer el proyecto?', 'Se eliminarán todas las marcas de agua y se quitarán las rotaciones de página. El PDF seguirá cargado. Puedes deshacer con Ctrl+Z.', 'Sí, restablecer');
+  if (!ok) return;
+  showLoading('Restableciendo…', 'Limpiando marcas de agua y rotaciones');
+  await nextPaint();
+  try {
+    wm.objects = [];
+    wm.pageRotations = new Array(wm.numPages).fill(0);
+    wm.selectedId = null;
+    wmPushHistory();
+    await wmRenderThumbnails();
+    await wmRenderCurrentPage();
+    wmRenderRightPanel();
+    toast('Proyecto restablecido', 'ok');
+  } catch (e) { console.error(e); toast('No se pudo restablecer', 'err'); }
+  finally { hideLoading(); }
+}
 function wmSaveProject() {
   if (!wm.pdfDoc) { toast('No hay documento cargado', 'err'); return; }
   try {
@@ -4193,6 +4458,7 @@ function animBuildFinalComposition() {
     const c = anim.instColor.color;
     if (layout.instGraphic) layout.instGraphic.color = c;
     (layout.instCaptions || []).forEach(cap => cap.color = c);
+    if (layout.instRule) layout.instRule.color = c;
   }
   if (anim.logoColor.enabled) {
     const c = anim.logoColor.color;
@@ -5449,6 +5715,76 @@ const cn = {
   other: false, /* true = «Soy de otro ministerio o dirección»: logos de Dirección de Integración / proyecto limpios */
   img: { qr: null, prog: null, logoA: null, logoB: null },
 };
+/* Copia de los textos originales del reverso (para restaurarlos al salir del modo «otro ministerio») */
+const CN_BACK_TEXT_KEYS = ['c1', 'c2', 'becado', 'becadoVal', 'emision', 'valid', 'addr'];
+const CN_BACK_DEFAULT = JSON.parse(JSON.stringify(cn.back));
+/* Edición completa del logo «Gobierno de El Salvador» (frente y reverso) y de los logos del reverso */
+const CN_LG_DEF = () => ({
+  front: { crest: true, text: 'GOBIERNO DE\nEL SALVADOR', crestScale: 100, textScale: 100, sideScale: 100, sep: true, color: '' },
+  back:  { crest: true, text: 'GOBIERNO DE\nEL SALVADOR', crestScale: 100, textScale: 100, sideScale: 100, sep: true, color: '' },
+});
+const CN_TF_DEF = () => ({ prog: { dx: 0, dy: 0, s: 100 }, logoA: { dx: 0, dy: 0, s: 100 }, logoB: { dx: 0, dy: 0, s: 100 } });
+cn.lg = CN_LG_DEF(); cn.tf = CN_TF_DEF();
+/* ====== Edición personalizada (arrastrar / alinear, estilo Canva) ====== */
+cn.pos = { front: {}, back: {} };   /* {dx,dy,s} por elemento */
+cn.edit = { on: false };
+cn.sel = null;                      /* elemento principal {side,id} */
+cn.sels = [];                       /* selección múltiple (Ctrl/⌘/Shift + clic), siempre del mismo lado */
+cn.extras = [];                     /* logos extra agregados por el usuario */
+cn.extraSeq = 0;
+cn.grp = null;                      /* instantánea para escalar la selección múltiple desde el deslizador */
+cn.fmt = 'png';                     /* formato de exportación: png | svg */
+const CN_EL_NAMES = {
+  front: { hdrL: 'Encabezado «GOBIERNO DE»', hdrR: 'Encabezado «EL SALVADOR»', crest: 'Escudo del encabezado', photo: 'Foto', name: 'Nombre', idline: 'Número de ID',
+           lgCrest: 'Logo inferior — escudo', lgText: 'Logo inferior — texto', sep: 'Separador', side: 'Texto lateral / unidad' },
+  back:  { c1: 'Contacto (línea 1)', c2: 'Correo (línea 2)', qr: 'Código QR', qrLabel: 'Texto bajo el QR', prog: 'Logo del proyecto', becado: 'Becado por…', logoA: 'Logo izquierdo',
+           logoB: 'Logo derecho', lgCrest: 'Logo inferior — escudo', lgText: 'Logo inferior — texto', sep1: 'Separador 1', sep2: 'Separador 2', side1: 'Texto lateral 1', side2: 'Texto lateral 2',
+           emision: 'Fecha de emisión', valid: 'Validez', addr: 'Dirección' },
+};
+function cnPosOf(side, id) { return (cn.pos[side] && cn.pos[side][id]) || { dx: 0, dy: 0, s: 100 }; }
+function cnTfStr(p, c) {
+  let t = `translate(${r2(p.dx)} ${r2(p.dy)})`;
+  if (p.s !== 100 && c) t += ` translate(${c[0]} ${c[1]}) scale(${p.s / 100}) translate(${-c[0]} ${-c[1]})`;
+  return t;
+}
+const cnMeasureCache = new Map();
+/* Rectángulo local (antes de mover/escalar) de un fragmento de SVG. Usa getBBox para ser coherente con el editor. */
+function cnMeasureRect(markup) {
+  if (cnMeasureCache.has(markup)) return cnMeasureCache.get(markup);
+  let R = { x: 0, y: 0, w: 648, h: 1020, cx: 324, cy: 510 };
+  try {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:0;top:0;width:648px;height:1020px;visibility:hidden;pointer-events:none;';
+    host.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="648" height="1020" viewBox="0 0 648 1020"><g>${markup}</g></svg>`;
+    document.body.appendChild(host);
+    const gm = host.firstChild.firstChild, src = gm.querySelector('[data-bbox]') || gm, b = src.getBBox();
+    if (b.width || b.height) R = { x: r2(b.x), y: r2(b.y), w: r2(b.width), h: r2(b.height), cx: r2(b.x + b.width / 2), cy: r2(b.y + b.height / 2) };
+    host.remove();
+  } catch (e) { /* valores por defecto */ }
+  if (cnMeasureCache.size > 80) cnMeasureCache.clear();
+  cnMeasureCache.set(markup, R);
+  return R;
+}
+/* Elementos con manijas de recorte (los logos) */
+function cnIsCropable(id) { return /^(prog|logoA|logoB|crest|lgCrest|x\d+)$/.test(id); }
+/* Envuelve un elemento para que sea movible / escalable / recortable. center = centro de escala si ya se conoce. */
+function cnG(side, id, markup, center) {
+  if (!markup || !String(markup).trim()) return '';
+  const p = cnPosOf(side, id), cr = p.crop, hasCrop = !!(cr && (cr.l || cr.t || cr.r || cr.b));
+  let c = center, R = null;
+  if (p.s !== 100 || hasCrop) { R = cnMeasureRect(markup); if (!c) c = [R.cx, R.cy]; }
+  let pre = '', clip = '';
+  if (hasCrop && R) {
+    const x = r2(R.x + R.w * cr.l), y = r2(R.y + R.h * cr.t), w = r2(R.w * (1 - cr.l - cr.r)), h = r2(R.h * (1 - cr.t - cr.b)), cid = `cnClp-${side}-${id}`;
+    pre = `<defs><clipPath id="${cid}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath></defs><rect data-bbox="1" data-crop="1" x="${x}" y="${y}" width="${w}" height="${h}" fill="none" pointer-events="none"/>`;
+    clip = ` clip-path="url(#${cid})"`;
+  }
+  return `<g data-cn="${id}"${c ? ` data-c="${c[0]},${c[1]}"` : ''}${R && hasCrop ? ` data-r="${R.x},${R.y},${R.w},${R.h}"` : ''} transform="${cnTfStr(p, c)}"${clip}>${pre}${markup}</g>`;
+}
+/* Logos extra */
+function cnExtrasSvg(side) {
+  return cn.extras.filter(e => e.side === side).map(e => cnG(side, e.id, blockImageSvgMarkup(e.im, e.box[0], e.box[1], e.box[2], e.box[3]))).join('');
+}
 const CN_IMG_LABELS = { qr: 'Código QR', prog: 'Logo del proyecto / programa (centro)', logoA: 'Logo izquierdo (institución)', logoB: 'Logo derecho (programa)' };
 
 function cnWrap(text, maxW, font, size, weight) {
@@ -5465,7 +5801,7 @@ function cnWrap(text, maxW, font, size, weight) {
 }
 function cnCrest(cx, y, h, color, op) {
   const w = h * CREST_VB.w / CREST_VB.h;
-  return `<svg x="${cx - w / 2}" y="${y}" width="${w}" height="${h}" viewBox="${CREST_VB.minX} ${CREST_VB.minY} ${CREST_VB.w} ${CREST_VB.h}" style="overflow:hidden"><g fill="${color}" opacity="${op || 1}">${ESCUDO_PATHS}</g></svg>`;
+  return `<rect data-bbox="1" x="${cx - w / 2}" y="${y}" width="${w}" height="${h}" fill="none" pointer-events="none"/><svg x="${cx - w / 2}" y="${y}" width="${w}" height="${h}" viewBox="${CREST_VB.minX} ${CREST_VB.minY} ${CREST_VB.w} ${CREST_VB.h}" style="overflow:hidden"><g fill="${color}" opacity="${op || 1}">${ESCUDO_PATHS}</g></svg>`;
 }
 function cnText(lines, x, y0, lh, attrs) {
   return lines.map((l, i) => `<text x="${x}" y="${y0 + i * lh}" ${attrs}>${escapeXml(l)}</text>`).join('');
@@ -5473,7 +5809,14 @@ function cnText(lines, x, y0, lh, attrs) {
 function cnImg(key, x, y, w, h, ex, label, onLight) {
   const im = cn.img[key];
   if (im && im.isPreset && CN_PRESETS[key]) [x, y, w, h] = CN_PRESETS[key].box;
-  if (im) return blockImageSvgMarkup(im, x, y, w, h);
+  if (im) {
+    const t = cn.tf && cn.tf[key];
+    if (t && (t.dx || t.dy || t.s !== 100)) {
+      const nw = w * t.s / 100, nh = h * t.s / 100;
+      x = x + (w - nw) / 2 + t.dx; y = y + (h - nh) / 2 + t.dy; w = nw; h = nh;
+    }
+    return blockImageSvgMarkup(im, x, y, w, h);
+  }
   if (ex) return '';
   const stroke = onLight ? 'rgba(42,50,121,.55)' : 'rgba(255,255,255,.55)', fillBg = onLight ? 'rgba(42,50,121,.06)' : 'rgba(255,255,255,.08)', txt = onLight ? '#2A3279' : '#fff';
   return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fillBg}" stroke="${stroke}" stroke-dasharray="7 5"/><text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle" font-size="15" fill="${txt}" font-family="${CN_SANS}">${escapeXml(label)}</text></g>`;
@@ -5546,55 +5889,74 @@ function cnFitSize(lines, font, size, weight, maxW, minSize) {
   return sz;
 }
 function cnLines(t) { return String(t || '').toLocaleUpperCase('es').split('\n').map(l => l.trim()).filter(Boolean); }
+function cnLgCfg(side) { return cn.other ? cn.lg[side] : CN_LG_DEF()[side]; }
+/* Logo vertical del frente: escudo + «GOBIERNO DE / EL SALVADOR», todo editable en modo «otro ministerio» */
 function cnFrontLockup(cx) {
-  const c = cn, sf = `font-family="${CN_SERIF}"`;
-  return `${cnCrest(cx, 795, 125, c.accent)}
-<text x="${cx}" y="946" text-anchor="middle" font-size="20" fill="${c.accent}" ${sf}>GOBIERNO DE</text><text x="${cx}" y="966" text-anchor="middle" font-size="20" fill="${c.accent}" ${sf}>EL SALVADOR</text>`;
+  const g = cnLgCfg('front'), col = g.color || cn.accent, sf = `font-family="${CN_SERIF}"`;
+  const h = 125 * g.crestScale / 100, fs = 20 * g.textScale / 100, lh = fs, lines = cnLines(g.text);
+  if (!g.crest && !lines.length) return '';
+  const tAttr = `text-anchor="middle" font-size="${r2(fs)}" fill="${col}" ${sf}`;
+  if (!g.crest) return cnG('front', 'lgText', cnText(lines, cx, r2(883.5 - (lines.length - 1) * lh / 2 + fs * 0.32), r2(lh), tAttr));
+  const gap = h * 0.208, total = h + (lines.length ? gap + (lines.length - 1) * lh + fs * 0.3 : 0), top = 883.5 - total / 2;
+  return cnG('front', 'lgCrest', cnCrest(cx, r2(top), r2(h), col)) + (lines.length ? cnG('front', 'lgText', cnText(lines, cx, r2(top + h + gap), r2(lh), tAttr)) : '');
 }
 function cnFrontBottom() {
-  const c = cn, sf = `font-family="${CN_SERIF}"`;
+  const c = cn, g = cnLgCfg('front'), col = g.color || c.accent, sf = `font-family="${CN_SERIF}"`;
+  const sep = g.sep ? cnG('front', 'sep', `<rect x="264" y="790" width="2" height="180" fill="${col}"/>`) : '';
   if (!c.other) {
     const unit = c.unit.toLocaleUpperCase('es').split('\n'), uy = 880 - (unit.length - 1) * 22 + 12;
     return `${cnFrontLockup(172)}
-<rect x="264" y="790" width="2" height="180" fill="${c.accent}"/>
-${cnText(unit, 278, uy, 44, `font-size="38" fill="${c.accent}" ${sf}`)}`;
+${sep}
+${cnG('front', 'side', cnText(unit, 278, uy, 44, `font-size="38" fill="${c.accent}" ${sf}`))}`;
   }
   const t = cnLines(c.o.front);
   if (!t.length) return cnFrontLockup(324);
-  const fs = cnFitSize(t, CN_SERIF, 38, 400, 350, 22), lh = fs * 44 / 38, y0 = 880 - (t.length - 1) * lh / 2 + fs * 0.32;
+  const base = 38 * g.sideScale / 100, fs = cnFitSize(t, CN_SERIF, base, 400, 350, Math.min(22, base)), lh = fs * 44 / 38, y0 = 880 - (t.length - 1) * lh / 2 + fs * 0.32;
   return `${cnFrontLockup(172)}
-<rect x="264" y="790" width="2" height="180" fill="${c.accent}"/>
-${cnText(t, 278, r2(y0), r2(lh), `font-size="${fs}" fill="${c.accent}" ${sf}`)}`;
+${sep}
+${cnG('front', 'side', cnText(t, 278, r2(y0), r2(lh), `font-size="${r2(fs)}" fill="${col}" ${sf}`))}`;
+}
+/* Logo vertical del reverso */
+function cnBackLines() { return cnLines(cnLgCfg('back').text); }
+function cnBackLockupW() {
+  const g = cnLgCfg('back'), fs = 12 * g.textScale / 100, ls = cnBackLines();
+  const cw = g.crest ? 78 * g.crestScale / 100 * CREST_VB.w / CREST_VB.h : 0;
+  return Math.max(cw, ...ls.map(l => measureLineWidth(l, CN_SERIF, fs, 400, 0)), 0);
 }
 function cnBackLockup(cx) {
-  const sf = `font-family="${CN_SERIF}"`;
-  return `${cnCrest(cx, 758, 78, '#fff')}<text x="${cx}" y="858" text-anchor="middle" font-size="12" fill="#fff" ${sf}>GOBIERNO DE</text><text x="${cx}" y="871" text-anchor="middle" font-size="12" fill="#fff" ${sf}>EL SALVADOR</text>`;
+  const g = cnLgCfg('back'), col = g.color || '#fff', sf = `font-family="${CN_SERIF}"`;
+  const h = 78 * g.crestScale / 100, fs = 12 * g.textScale / 100, lh = fs * 13 / 12, lines = cnBackLines();
+  if (!g.crest && !lines.length) return '';
+  const tAttr = `text-anchor="middle" font-size="${r2(fs)}" fill="${col}" ${sf}`;
+  if (!g.crest) return cnG('back', 'lgText', cnText(lines, cx, r2(816.5 - (lines.length - 1) * lh / 2 + fs * 0.32), r2(lh), tAttr));
+  const gap = h * 0.282, total = h + (lines.length ? gap + (lines.length - 1) * lh + fs * 0.33 : 0), top = 816.5 - total / 2;
+  return cnG('back', 'lgCrest', cnCrest(cx, r2(top), r2(h), col)) + (lines.length ? cnG('back', 'lgText', cnText(lines, cx, r2(top + h + gap), r2(lh), tAttr)) : '');
 }
 function cnBackBottom(ub, unit, sub) {
+  const g = cnLgCfg('back'), col = g.color || '#fff', sep = (x, id) => g.sep ? cnG('back', id, `<rect x="${x}" y="748" width="2" height="115" fill="${col}"/>`) : '';
   if (!cn.other) {
     return `${cnBackLockup(112)}
-<rect x="165" y="748" width="2" height="115" fill="#fff"/>${ub(unit, 182)}
-<rect x="404" y="748" width="2" height="115" fill="#fff"/>${ub(sub, 421)}`;
+${sep(165, 'sep1')}${cnG('back', 'side1', ub(unit, 182))}
+${sep(404, 'sep2')}${cnG('back', 'side2', ub(sub, 421))}`;
   }
   const blocks = [cnLines(cn.o.unit), cnLines(cn.o.sub)].filter(a => a.length);
   if (!blocks.length) return cnBackLockup(324);
-  const sf = `font-family="${CN_SERIF}"`;
-  /* 1 solo sub-bloque: todo el conjunto (escudo + separador + texto) se centra en la tarjeta. */
+  const sf = `font-family="${CN_SERIF}"`, base = 26 * g.sideScale / 100;
   if (blocks.length === 1) {
     const arr = blocks[0];
-    const fs = cnFitSize(arr, CN_SERIF, 26, 400, 400, 14), lh = fs * 28 / 26, y0 = 810 - (arr.length - 1) * lh / 2;
+    const fs = cnFitSize(arr, CN_SERIF, base, 400, 400, Math.min(14, base)), lh = fs * 28 / 26, y0 = 810 - (arr.length - 1) * lh / 2;
     const tw = Math.max(...arr.map(l => measureLineWidth(l, CN_SERIF, fs, 400, 0)));
-    const lw = Math.max(78 * CREST_VB.w / CREST_VB.h, measureLineWidth('GOBIERNO DE', CN_SERIF, 12, 400, 0), measureLineWidth('EL SALVADOR', CN_SERIF, 12, 400, 0));
+    const lw = cnBackLockupW();
     const gap = 17, total = lw + gap + 2 + gap + tw, x0 = (CN_W - total) / 2;
     const dx = x0 + lw + gap, tx = dx + 2 + gap;
     return `${cnBackLockup(r2(x0 + lw / 2))}
-<rect x="${r2(dx)}" y="748" width="2" height="115" fill="#fff"/>${cnText(arr, r2(tx), r2(y0), r2(lh), `font-size="${fs}" fill="#fff" ${sf}`)}`;
+${sep(r2(dx), 'sep1')}${cnG('back', 'side1', cnText(arr, r2(tx), r2(y0), r2(lh), `font-size="${r2(fs)}" fill="${col}" ${sf}`))}`;
   }
   let out = cnBackLockup(112);
   blocks.forEach((arr, i) => {
     const dx = i ? 404 : 165, tx = i ? 421 : 182;
-    const fs = cnFitSize(arr, CN_SERIF, 26, 400, 205, 14), lh = fs * 28 / 26, y0 = 810 - (arr.length - 1) * lh / 2;
-    out += `\n<rect x="${dx}" y="748" width="2" height="115" fill="#fff"/>${cnText(arr, tx, r2(y0), r2(lh), `font-size="${fs}" fill="#fff" ${sf}`)}`;
+    const fs = cnFitSize(arr, CN_SERIF, base, 400, 205, Math.min(14, base)), lh = fs * 28 / 26, y0 = 810 - (arr.length - 1) * lh / 2;
+    out += `\n${sep(dx, 'sep' + (i + 1))}${cnG('back', 'side' + (i + 1), cnText(arr, tx, r2(y0), r2(lh), `font-size="${r2(fs)}" fill="${col}" ${sf}`))}`;
   });
   return out;
 }
@@ -5615,13 +5977,14 @@ function cnFrontSvg(ex) {
   return `<defs><clipPath id="cnClip"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath></defs>
 <rect width="${CN_W}" height="${CN_H}" fill="#fff"/>
 <rect width="${CN_W}" height="395" fill="${c.headerColor}"/>
-<text x="38" y="136" ${sf} font-size="31" fill="#fff" letter-spacing=".5">GOBIERNO DE</text>
-<text x="612" y="136" ${sf} font-size="31" fill="#fff" letter-spacing=".5" text-anchor="end">EL SALVADOR</text>
-${cnCrest(cx, 62, 125, '#fff')}
-<circle cx="${cx}" cy="${cy}" r="${R + 18}" fill="#fff"/>${photo}
-${cnText(nm, cx, 604, 40, `text-anchor="middle" font-size="32" font-weight="800" fill="#111" ${ss}`)}
-<text x="${cx}" y="752" text-anchor="middle" font-size="26" font-weight="800" fill="#111" ${ss}><tspan>${escapeXml(c.idLabel)} </tspan><tspan text-decoration="underline">${escapeXml(c.idValue)}</tspan></text>
-${cnFrontBottom()}`;
+${cnG('front', 'hdrL', `<text x="38" y="136" ${sf} font-size="31" fill="#fff" letter-spacing=".5">GOBIERNO DE</text>`)}
+${cnG('front', 'hdrR', `<text x="612" y="136" ${sf} font-size="31" fill="#fff" letter-spacing=".5" text-anchor="end">EL SALVADOR</text>`)}
+${cnG('front', 'crest', cnCrest(cx, 62, 125, '#fff'))}
+${cnG('front', 'photo', `<circle data-bbox="1" cx="${cx}" cy="${cy}" r="${R + 18}" fill="#fff"/>${photo}`, [cx, cy])}
+${cnG('front', 'name', cnText(nm, cx, 604, 40, `text-anchor="middle" font-size="32" font-weight="800" fill="#111" ${ss}`))}
+${cnG('front', 'idline', `<text x="${cx}" y="752" text-anchor="middle" font-size="26" font-weight="800" fill="#111" ${ss}><tspan>${escapeXml(c.idLabel)} </tspan><tspan text-decoration="underline">${escapeXml(c.idValue)}</tspan></text>`)}
+${cnFrontBottom()}
+${cnExtrasSvg('front')}`;
 }
 
 function cnBackSvg(ex) {
@@ -5637,19 +6000,20 @@ function cnBackSvg(ex) {
   const ub = (arr, x) => cnText(arr, x, 810 - (arr.length - 1) * 14, 28, `font-size="26" fill="#fff" ${sf}`);
   return `<rect width="${CN_W}" height="${CN_H}" fill="${b.bg}"/>
 ${b.wm ? cnWatermark() : ''}
-<text x="324" y="55" text-anchor="middle" font-size="19" font-weight="700" fill="#fff" ${ss}>${escapeXml(b.c1)}</text>
-<text x="324" y="88" text-anchor="middle" font-size="23" font-weight="700" fill="#fff" ${ss}>${escapeXml(b.c2)}</text>
-<rect x="172" y="100" width="316" height="332" fill="none" stroke="#fff" stroke-width="4"/>
-<rect x="195" y="113" width="270" height="270" fill="#fff"/>${(() => { const g = cnQr(b.qrLink, 195, 113, 270); return g.markup || cnImg('qr', 195, 113, 270, 270, ex, 'Pega un enlace → QR'); })()}
-<text x="324" y="414" text-anchor="middle" font-size="22" font-weight="800" fill="#fff" ${ss}>${escapeXml(b.qrLabel)}</text>
-${cnImg('prog', 190, 448, 270, 80, ex, 'Logo proyecto')}
-${becSvg}
-${cnImg('logoA', 60, 625, 310, 125, ex, 'Logo izquierdo')}
-${cnImg('logoB', 385, 620, 205, 200, ex, 'Logo derecho')}
+${cnG('back', 'c1', `<text x="324" y="55" text-anchor="middle" font-size="19" font-weight="700" fill="#fff" ${ss}>${escapeXml(b.c1)}</text>`)}
+${cnG('back', 'c2', `<text x="324" y="88" text-anchor="middle" font-size="23" font-weight="700" fill="#fff" ${ss}>${escapeXml(b.c2)}</text>`)}
+${cnG('back', 'qr', `<rect x="172" y="100" width="316" height="332" fill="none" stroke="#fff" stroke-width="4"/>
+<rect x="195" y="113" width="270" height="270" fill="#fff"/>${(() => { const g = cnQr(b.qrLink, 195, 113, 270); return g.markup || cnImg('qr', 195, 113, 270, 270, ex, 'Pega un enlace → QR'); })()}`)}
+${cnG('back', 'qrLabel', `<text x="324" y="414" text-anchor="middle" font-size="22" font-weight="800" fill="#fff" ${ss}>${escapeXml(b.qrLabel)}</text>`)}
+${cnG('back', 'prog', cnImg('prog', 190, 448, 270, 80, ex, 'Logo proyecto'))}
+${cnG('back', 'becado', becSvg)}
+${cnG('back', 'logoA', cnImg('logoA', 60, 625, 310, 125, ex, 'Logo izquierdo'))}
+${cnG('back', 'logoB', cnImg('logoB', 385, 620, 205, 200, ex, 'Logo derecho'))}
 ${cnBackBottom(ub, unit, sub)}
-<text x="324" y="892" text-anchor="middle" font-size="19" font-style="italic" font-weight="800" fill="#fff" ${ss}>${escapeXml(b.emision)}</text>
-<text x="324" y="922" text-anchor="middle" font-size="18" font-style="italic" font-weight="300" fill="#fff" ${ss}>${escapeXml(b.valid)}</text>
-${cnText(addr, 324, 947, addr.length > 3 ? Math.min(20.5, 41 / (addr.length - 1)) : 20.5, `text-anchor="middle" font-size="15" font-weight="700" fill="#fff" ${ss}`)}`;
+${cnG('back', 'emision', `<text x="324" y="892" text-anchor="middle" font-size="19" font-style="italic" font-weight="800" fill="#fff" ${ss}>${escapeXml(b.emision)}</text>`)}
+${cnG('back', 'valid', `<text x="324" y="922" text-anchor="middle" font-size="18" font-style="italic" font-weight="300" fill="#fff" ${ss}>${escapeXml(b.valid)}</text>`)}
+${cnG('back', 'addr', cnText(addr, 324, 947, addr.length > 3 ? Math.min(20.5, 41 / (addr.length - 1)) : 20.5, `text-anchor="middle" font-size="15" font-weight="700" fill="#fff" ${ss}`))}
+${cnExtrasSvg('back')}`;
 }
 
 function cnSvg(side, scale) {
@@ -5660,15 +6024,30 @@ function cnSvg(side, scale) {
 function cnRender() {
   const hint = document.getElementById('cnQrHint');
   if (hint) { const g = cnQr(cn.back.qrLink, 0, 0, 270); hint.textContent = g.empty ? 'Pega un enlace y el QR se genera automáticamente.' : g.error ? 'El enlace es demasiado largo para un QR. Acórtalo.' : 'QR generado para: ' + cnNormalizeLink(cn.back.qrLink); }
-  ['front', 'back'].forEach(side => { const el = document.getElementById('cnPrev-' + side); if (el) el.innerHTML = cnSvg(side, 0); });
+  ['front', 'back'].forEach(side => { const el = document.getElementById('cnPrev-' + side); if (el) { el.innerHTML = cnSvg(side, 0); cnEditAttach(el, side); } });
 }
 async function cnExport(side, scale) {
+  const name = `carnet-${side === 'back' ? 'reverso' : 'frente'}`;
   try {
+    if (cn.fmt === 'svg') {
+      /* SVG vectorial: se importa Montserrat (la misma fuente que carga la página) para que se vea igual al abrirlo en el navegador */
+      let svg = cnSvg(side, 1).replace('>', `><style>@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&amp;display=swap');</style>`);
+      svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg;
+      downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), name + '.svg');
+      toast('SVG descargado', 'ok'); return;
+    }
     const img = await loadSvgImage(cnSvg(side, scale));
     const cv = document.createElement('canvas'); cv.width = CN_W * scale; cv.height = CN_H * scale;
     cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-    cv.toBlob(bl => { if (!bl) { toast('No se pudo generar el PNG', 'err'); return; } downloadBlob(bl, `carnet-${side === 'back' ? 'reverso' : 'frente'}.png`); toast('PNG descargado', 'ok'); }, 'image/png');
+    cv.toBlob(bl => { if (!bl) { toast('No se pudo generar el PNG', 'err'); return; } downloadBlob(bl, name + '.png'); toast('PNG descargado', 'ok'); }, 'image/png');
   } catch (e) { console.error(e); toast('Error al exportar el carnet', 'err'); }
+}
+function cnSetFmt(f) {
+  cn.fmt = f;
+  const u = f.toUpperCase();
+  const b = document.getElementById('cnFmtBoth'); if (b) b.innerHTML = `${ICONS.download} Descargar frente y reverso (${u})`;
+  const h = document.getElementById('cnFmtHint');
+  if (h) h.textContent = f === 'png' ? 'PNG a 1296 × 2040 px (2×).' : 'SVG vectorial de 648 × 1020, editable en Illustrator, Inkscape o Figma. Las fuentes se referencian por nombre.';
 }
 async function cnExportBoth(scale) { await cnExport('front', scale); await cnExport('back', scale); }
 
@@ -5677,17 +6056,359 @@ async function cnExportBoth(scale) { await cnExport('front', scale); await cnExp
    del encabezado del frente y el logo vertical «Gobierno de El Salvador» (frente y reverso, centrado). */
 function cnSetOther(on) {
   cn.other = !!on;
+  cn.lg = CN_LG_DEF(); cn.tf = CN_TF_DEF(); cn.pos = { front: {}, back: {} }; cn.extras = []; cnSetSel([]);
   if (on) {
     ['prog', 'logoA', 'logoB'].forEach(k => { cn.img[k] = null; });
     cn.o = { front: '', unit: '', sub: '' };
+    CN_BACK_TEXT_KEYS.forEach(k => { cn.back[k] = ''; }); /* contacto, correo, «becado por», fechas y dirección */
     cnRenderControls(); cnRender();
     toast('Carnet limpiado · agrega tus logos y textos', 'ok');
   } else {
+    CN_BACK_TEXT_KEYS.forEach(k => { cn.back[k] = CN_BACK_DEFAULT[k]; });
     cnRenderControls(); cnRender();
     cnLoadPresets();
-    toast('Logos predeterminados restaurados', 'ok');
+    toast('Datos y logos predeterminados restaurados', 'ok');
   }
 }
+function cnLgReset() { cn.lg = CN_LG_DEF(); cn.tf = CN_TF_DEF(); cnRenderControls(); cnRender(); toast('Edición de logos restablecida', 'ok'); }
+
+
+/* ---------- Editor libre: mover, escalar, recortar, selección múltiple y alineación (estilo Canva) ---------- */
+const CN_NS = 'http://www.w3.org/2000/svg';
+const cnCtx = { front: null, back: null };
+function cnMk(tag, attrs) { const e = document.createElementNS(CN_NS, tag); Object.entries(attrs || {}).forEach(([k, v]) => e.setAttribute(k, v)); return e; }
+function cnElName(side, id) {
+  if (id[0] === 'x') { const e = cn.extras.find(x => x.id === id); return e ? e.name : 'Logo extra'; }
+  return (CN_EL_NAMES[side] || {})[id] || id;
+}
+function cnIsSel(side, id) { return cn.sels.some(s => s.side === side && s.id === id); }
+function cnSetSel(arr) { cn.sels = arr; cn.sel = arr.length ? arr[arr.length - 1] : null; cn.grp = null; }
+function cnUnion(rs) {
+  const x1 = Math.min(...rs.map(r => r.x)), y1 = Math.min(...rs.map(r => r.y)), x2 = Math.max(...rs.map(r => r.x + r.w)), y2 = Math.max(...rs.map(r => r.y + r.h));
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+function cnRectOf(svg, g) {
+  const src = g.querySelector('[data-bbox]') || g, r = src.getBoundingClientRect(), m = svg.getScreenCTM();
+  if (!m || (r.width < 0.3 && r.height < 0.3)) return null;
+  const inv = m.inverse(), a = new DOMPoint(r.left, r.top).matrixTransform(inv), b = new DOMPoint(r.right, r.bottom).matrixTransform(inv);
+  return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+}
+/* Rectángulo local COMPLETO (sin recorte) y centro de escala de un grupo ya dibujado */
+function cnLocalRect(g) {
+  const dr = g.getAttribute('data-r');
+  if (dr) { const [x, y, w, h] = dr.split(',').map(Number); return { x, y, w, h }; }
+  const src = g.querySelector('[data-bbox]') || g, b = src.getBBox();
+  return { x: b.x, y: b.y, w: b.width, h: b.height };
+}
+function cnCenterOf(g) {
+  const d = g.getAttribute('data-c');
+  if (d) return d.split(',').map(Number);
+  const L = cnLocalRect(g); return [L.x + L.w / 2, L.y + L.h / 2];
+}
+function cnEnsurePos(side, id) { if (!cn.pos[side][id]) cn.pos[side][id] = { dx: 0, dy: 0, s: 100 }; return cn.pos[side][id]; }
+
+function cnEditAttach(host, side) {
+  const svg = host.querySelector('svg'); if (!svg) return;
+  svg.style.touchAction = cn.edit.on ? 'none' : '';
+  if (!cn.edit.on) { cnCtx[side] = null; return; }
+  const toSvg = (x, y) => { const m = svg.getScreenCTM(); return m ? new DOMPoint(x, y).matrixTransform(m.inverse()) : { x, y }; };
+  const ov = cnMk('g', { id: 'cnOv-' + side });
+  const items = [...svg.querySelectorAll('[data-cn]')].map(g => ({ g, id: g.getAttribute('data-cn'), r: cnRectOf(svg, g) })).filter(i => i.r);
+  items.sort((p, q) => q.r.w * q.r.h - p.r.w * p.r.h);
+  const guides = cnMk('g', { 'pointer-events': 'none' }), selUI = cnMk('g', {});
+  const ctx = { svg, side, items, toSvg, guides, selUI };
+  items.forEach(it => {
+    const pad = 5;
+    const box = cnMk('rect', { x: it.r.x - pad, y: it.r.y - pad, width: it.r.w + pad * 2, height: it.r.h + pad * 2, fill: 'transparent', 'data-ov': it.id, 'data-side': side, style: 'cursor:move' });
+    box.setAttribute('vector-effect', 'non-scaling-stroke');
+    it.box = box; ov.appendChild(box);
+    box.addEventListener('pointerdown', ev => cnHitDown(ev, ctx, it));
+  });
+  ov.appendChild(selUI); ov.appendChild(guides);
+  svg.appendChild(ov);
+  svg.addEventListener('pointerdown', e => {
+    if (e.target.closest('[data-ov],[data-h]')) return;
+    if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (cn.sels.length) { cnSetSel([]); cnRefreshSelection(); }
+  });
+  cnCtx[side] = ctx;
+  cnOverlayStyle(); cnDrawSelUI(ctx);
+}
+function cnOverlayStyle() {
+  document.querySelectorAll('[data-ov]').forEach(b => {
+    const sel = cnIsSel(b.getAttribute('data-side'), b.getAttribute('data-ov'));
+    b.setAttribute('stroke', sel ? '#00a8ff' : 'rgba(0,168,255,.45)');
+    b.setAttribute('stroke-width', sel ? 2 : 1.2);
+    b.setAttribute('stroke-dasharray', sel ? '' : '5 4');
+    b.setAttribute('fill', sel ? 'rgba(0,168,255,.07)' : 'transparent');
+  });
+}
+function cnRefreshSelection() {
+  cnOverlayStyle();
+  ['front', 'back'].forEach(sd => { const c = cnCtx[sd]; if (c && c.svg.isConnected) cnDrawSelUI(c); });
+  cnEditPanelRender();
+}
+const CN_CURSOR = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' };
+/* Recuadro de selección + manijas: 4 esquinas = tamaño; 4 centros = recorte (solo logos) */
+function cnDrawSelUI(ctx, U) {
+  const { selUI, side } = ctx; selUI.innerHTML = '';
+  const sel = ctx.items.filter(i => cnIsSel(side, i.id)); if (!sel.length) return;
+  U = U || cnUnion(sel.map(i => i.r));
+  selUI.appendChild(cnMk('rect', { x: U.x, y: U.y, width: U.w, height: U.h, fill: 'none', stroke: '#00a8ff', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }));
+  const pts = { nw: [U.x, U.y], ne: [U.x + U.w, U.y], se: [U.x + U.w, U.y + U.h], sw: [U.x, U.y + U.h], n: [U.x + U.w / 2, U.y], s: [U.x + U.w / 2, U.y + U.h], w: [U.x, U.y + U.h / 2], e: [U.x + U.w, U.y + U.h / 2] };
+  const edges = sel.length === 1 && cnIsCropable(sel[0].id);
+  Object.entries(pts).forEach(([k, [x, y]]) => {
+    const isEdge = k.length === 1; if (isEdge && !edges) return;
+    const horiz = k === 'n' || k === 's', vw = isEdge ? (horiz ? 26 : 8) : 14, vh = isEdge ? (horiz ? 8 : 26) : 14;
+    const vis = cnMk('rect', { x: x - vw / 2, y: y - vh / 2, width: vw, height: vh, rx: isEdge ? 4 : 3, fill: isEdge ? '#00a8ff' : '#fff', stroke: isEdge ? '#fff' : '#00a8ff', 'stroke-width': 2, 'pointer-events': 'none' });
+    vis.setAttribute('vector-effect', 'non-scaling-stroke');
+    const hit = cnMk('rect', { x: x - 17, y: y - 17, width: 34, height: 34, fill: 'transparent', 'data-h': k, style: 'cursor:' + CN_CURSOR[k] });
+    hit.addEventListener('pointerdown', ev => cnHandleDown(ev, ctx, k, sel, U));
+    selUI.appendChild(vis); selUI.appendChild(hit);
+  });
+}
+function cnMkLine(x1, y1, x2, y2) {
+  const l = cnMk('line', { x1, y1, x2, y2, stroke: '#ff2d78', 'stroke-width': 1.5, 'stroke-dasharray': '6 4' });
+  l.setAttribute('vector-effect', 'non-scaling-stroke'); return l;
+}
+function cnListen(mv, up) {
+  const end = e => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); up(e); };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+}
+/* Clic sobre un elemento: selecciona (Ctrl/⌘/Shift = sumar o quitar de la selección) y arranca el arrastre */
+function cnHitDown(ev, ctx, it) {
+  ev.preventDefault();
+  const side = ctx.side, multi = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+  if (multi) {
+    if (cnIsSel(side, it.id)) { cnSetSel(cn.sels.filter(s => !(s.side === side && s.id === it.id))); cnRefreshSelection(); return; }
+    cnSetSel([...cn.sels.filter(s => s.side === side), { side, id: it.id }]);
+  } else if (!cnIsSel(side, it.id)) {
+    cnSetSel([{ side, id: it.id }]);
+  }
+  cnRefreshSelection();
+  cnStartMove(ev, ctx);
+}
+/* Mover todo lo seleccionado con guías de alineación */
+function cnStartMove(ev, ctx) {
+  const { side, items, toSvg, guides } = ctx;
+  const sel = items.filter(i => cnIsSel(side, i.id)); if (!sel.length) return;
+  const p0 = toSvg(ev.clientX, ev.clientY), U0 = cnUnion(sel.map(i => i.r));
+  const base = sel.map(i => ({ it: i, pos: { ...cnPosOf(side, i.id) }, c: cnCenterOf(i.g) }));
+  const others = items.filter(i => !sel.includes(i)).map(i => i.r);
+  const xT = [0, 324, 648, 30, 618], yT = [0, 510, 1020, 30, 990];
+  others.forEach(o => { xT.push(o.x, o.x + o.w / 2, o.x + o.w); yT.push(o.y, o.y + o.h / 2, o.y + o.h); });
+  const TH = 7; let moved = false;
+  const snap = (pts, targets) => { let best = null; pts.forEach(pt => targets.forEach(t => { const d = t - pt; if (Math.abs(d) <= TH && (best === null || Math.abs(d) < Math.abs(best.d))) best = { d, t }; })); return best; };
+  cnListen(e => {
+    const p = toSvg(e.clientX, e.clientY); let dx = p.x - p0.x, dy = p.y - p0.y;
+    if (!moved && Math.hypot(dx, dy) < 2) return; moved = true;
+    guides.innerHTML = '';
+    if (!e.altKey) {
+      const sx = snap([U0.x + dx, U0.x + dx + U0.w / 2, U0.x + dx + U0.w], xT), sy = snap([U0.y + dy, U0.y + dy + U0.h / 2, U0.y + dy + U0.h], yT);
+      if (sx) { dx += sx.d; guides.appendChild(cnMkLine(sx.t, 0, sx.t, 1020)); }
+      if (sy) { dy += sy.d; guides.appendChild(cnMkLine(0, sy.t, 648, sy.t)); }
+    }
+    base.forEach(b => {
+      const np = { ...b.pos, dx: b.pos.dx + dx, dy: b.pos.dy + dy };
+      b.it.g.setAttribute('transform', cnTfStr(np, b.c));
+      b.it.box.setAttribute('x', b.it.r.x + dx - 5); b.it.box.setAttribute('y', b.it.r.y + dy - 5);
+      cn.pos[side][b.it.id] = np;
+    });
+    cnDrawSelUI(ctx, { x: U0.x + dx, y: U0.y + dy, w: U0.w, h: U0.h });
+  }, () => { guides.innerHTML = ''; if (moved) { cn.grp = null; cnRender(); } });
+}
+/* Manijas: esquinas = escalar (selección completa, desde la esquina opuesta); centros = recortar (logos) */
+function cnHandleDown(ev, ctx, k, sel, U) {
+  ev.preventDefault(); ev.stopPropagation();
+  const { side, toSvg } = ctx, p0 = toSvg(ev.clientX, ev.clientY);
+  if (k.length === 1) { cnStartCrop(ctx, k, sel[0], p0); return; }
+  const opp = { nw: 'se', ne: 'sw', se: 'nw', sw: 'ne' }[k];
+  const corner = n => ({ x: n.includes('w') ? U.x : U.x + U.w, y: n.includes('n') ? U.y : U.y + U.h });
+  const A = corner(opp), H0 = corner(k), d2 = (H0.x - A.x) ** 2 + (H0.y - A.y) ** 2 || 1;
+  const base = sel.map(i => ({ it: i, pos: { ...cnPosOf(side, i.id) }, c: cnCenterOf(i.g), R: { ...i.r } }));
+  const kMin = Math.max(...base.map(b => 10 / b.pos.s)), kMax = Math.min(...base.map(b => 600 / b.pos.s));
+  let moved = false;
+  cnListen(e => {
+    const P = toSvg(e.clientX, e.clientY);
+    const kk = Math.min(kMax, Math.max(kMin, ((P.x - A.x) * (H0.x - A.x) + (P.y - A.y) * (H0.y - A.y)) / d2));
+    if (!moved && Math.abs(kk - 1) < 0.01) return; moved = true;
+    base.forEach(b => {
+      const np = { ...b.pos, s: b.pos.s * kk, dx: kk * b.pos.dx + (kk - 1) * (b.c[0] - A.x), dy: kk * b.pos.dy + (kk - 1) * (b.c[1] - A.y) };
+      b.it.g.setAttribute('transform', cnTfStr(np, b.c));
+      const bx = b.it.box;
+      bx.setAttribute('x', A.x + kk * (b.R.x - A.x) - 5); bx.setAttribute('y', A.y + kk * (b.R.y - A.y) - 5);
+      bx.setAttribute('width', b.R.w * kk + 10); bx.setAttribute('height', b.R.h * kk + 10);
+      cn.pos[side][b.it.id] = np;
+    });
+    cnDrawSelUI(ctx, { x: A.x + kk * (U.x - A.x), y: A.y + kk * (U.y - A.y), w: U.w * kk, h: U.h * kk });
+  }, () => { if (moved) { cn.grp = null; cnRender(); } });
+}
+/* Recorte con las manijas del centro de cada lado */
+function cnStartCrop(ctx, k, it, p0) {
+  const { side, svg, toSvg } = ctx, g = it.g, id = it.id;
+  const pos0 = { ...cnPosOf(side, id) }, cr0 = { l: 0, t: 0, r: 0, b: 0, ...(pos0.crop || {}) };
+  const L = cnLocalRect(g), c = cnCenterOf(g), ks = pos0.s / 100, cid = `cnClp-${side}-${id}`;
+  let clipRect = svg.querySelector(`#${cid} rect`), bb = g.querySelector('[data-crop]');
+  if (!clipRect) {
+    const defs = cnMk('defs'), cp = cnMk('clipPath', { id: cid });
+    clipRect = cnMk('rect'); cp.appendChild(clipRect); defs.appendChild(cp);
+    bb = cnMk('rect', { 'data-bbox': 1, 'data-crop': 1, fill: 'none', 'pointer-events': 'none' });
+    g.insertBefore(defs, g.firstChild); g.insertBefore(bb, g.firstChild);
+    g.setAttribute('clip-path', `url(#${cid})`);
+  }
+  const toS = (lx, ly) => [pos0.dx + c[0] + ks * (lx - c[0]), pos0.dy + c[1] + ks * (ly - c[1])];
+  let moved = false;
+  cnListen(e => {
+    const P = toSvg(e.clientX, e.clientY), dxl = (P.x - p0.x) / ks, dyl = (P.y - p0.y) / ks, cr = { ...cr0 };
+    const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    if (k === 'w') cr.l = cl(cr0.l + dxl / L.w, 0, 0.95 - cr0.r);
+    if (k === 'e') cr.r = cl(cr0.r - dxl / L.w, 0, 0.95 - cr0.l);
+    if (k === 'n') cr.t = cl(cr0.t + dyl / L.h, 0, 0.95 - cr0.b);
+    if (k === 's') cr.b = cl(cr0.b - dyl / L.h, 0, 0.95 - cr0.t);
+    moved = true;
+    const x = L.x + L.w * cr.l, y = L.y + L.h * cr.t, w = L.w * (1 - cr.l - cr.r), h = L.h * (1 - cr.t - cr.b);
+    [clipRect, bb].forEach(r => { r.setAttribute('x', x); r.setAttribute('y', y); r.setAttribute('width', w); r.setAttribute('height', h); });
+    const [sx, sy] = toS(x, y), U = { x: sx, y: sy, w: w * ks, h: h * ks };
+    it.box.setAttribute('x', U.x - 5); it.box.setAttribute('y', U.y - 5); it.box.setAttribute('width', U.w + 10); it.box.setAttribute('height', U.h + 10);
+    cn.pos[side][id] = { ...pos0, crop: cr };
+    cnDrawSelUI(ctx, U);
+  }, () => { if (moved) cnRender(); });
+}
+
+/* ---------- Panel ---------- */
+function cnToggleEdit(on) {
+  cn.edit.on = !!on; if (!on) cnSetSel([]);
+  cnEditPanelRender(); cnRender();
+}
+function cnSelect(v) {
+  if (!v) cnSetSel([]); else { const [side, id] = v.split(':'); cnSetSel([{ side, id }]); }
+  cnRefreshSelection();
+}
+function cnSelRects() {
+  return cn.sels.map(sl => {
+    const host = document.getElementById('cnPrev-' + sl.side), svg = host && host.querySelector('svg'), g = svg && svg.querySelector(`[data-cn="${sl.id}"]`);
+    const r = g && cnRectOf(svg, g); return r ? { ...sl, g, r } : null;
+  }).filter(Boolean);
+}
+function cnSetScale(v) {
+  if (!cn.sels.length) return; v = parseFloat(v);
+  const l = document.getElementById('cnScaleVal'); if (l) l.textContent = v;
+  if (cn.sels.length === 1) { cnEnsurePos(cn.sels[0].side, cn.sels[0].id).s = v; cnRender(); return; }
+  if (!cn.grp) {
+    const rs = cnSelRects(); if (!rs.length) return;
+    const U = cnUnion(rs.map(x => x.r));
+    cn.grp = { A: { x: U.x + U.w / 2, y: U.y + U.h / 2 }, list: rs.map(x => ({ side: x.side, id: x.id, pos: { ...cnPosOf(x.side, x.id) }, c: cnCenterOf(x.g) })) };
+  }
+  const kk = v / 100, A = cn.grp.A;
+  cn.grp.list.forEach(e => {
+    const p = cnEnsurePos(e.side, e.id);
+    p.s = Math.min(600, Math.max(10, e.pos.s * kk));
+    p.dx = kk * e.pos.dx + (kk - 1) * (e.c[0] - A.x); p.dy = kk * e.pos.dy + (kk - 1) * (e.c[1] - A.y);
+  });
+  cnRender();
+}
+function cnAlign(mode) {            /* alinear la selección (como bloque) a la tarjeta */
+  const rs = cnSelRects(); if (!rs.length) return;
+  const U = cnUnion(rs.map(x => x.r)), M = 30; let dx = 0, dy = 0;
+  if (mode === 'l') dx = M - U.x; if (mode === 'c') dx = 324 - (U.x + U.w / 2); if (mode === 'r') dx = 618 - (U.x + U.w);
+  if (mode === 't') dy = M - U.y; if (mode === 'm') dy = 510 - (U.y + U.h / 2); if (mode === 'b') dy = 990 - (U.y + U.h);
+  rs.forEach(x => { const p = cnEnsurePos(x.side, x.id); p.dx += dx; p.dy += dy; });
+  cn.grp = null; cnRender();
+}
+function cnAlignAmong(mode) {       /* alinear los elementos seleccionados entre sí */
+  const rs = cnSelRects(); if (rs.length < 2) return;
+  const U = cnUnion(rs.map(x => x.r));
+  rs.forEach(x => {
+    const p = cnEnsurePos(x.side, x.id), r = x.r;
+    if (mode === 'l') p.dx += U.x - r.x; if (mode === 'c') p.dx += (U.x + U.w / 2) - (r.x + r.w / 2); if (mode === 'r') p.dx += (U.x + U.w) - (r.x + r.w);
+    if (mode === 't') p.dy += U.y - r.y; if (mode === 'm') p.dy += (U.y + U.h / 2) - (r.y + r.h / 2); if (mode === 'b') p.dy += (U.y + U.h) - (r.y + r.h);
+  });
+  cn.grp = null; cnRender();
+}
+function cnResetEl() { cn.sels.forEach(s => { delete cn.pos[s.side][s.id]; }); cn.grp = null; cnEditPanelRender(); cnRender(); }
+function cnClearCrop() { cn.sels.forEach(s => { const p = cn.pos[s.side][s.id]; if (p) delete p.crop; }); cnEditPanelRender(); cnRender(); }
+function cnResetAllPos() { cn.pos = { front: {}, back: {} }; cn.grp = null; cnEditPanelRender(); cnRender(); toast('Posiciones restablecidas', 'ok'); }
+/* Logos extra */
+function cnAddExtra(evt, side) {
+  const file = evt.target.files && evt.target.files[0]; evt.target.value = '';
+  if (!file) return;
+  readImageFile(file).then(im => {
+    const id = 'x' + (++cn.extraSeq), ratio = im.naturalW / im.naturalH;
+    let w = 200, h = w / ratio; if (h > 170) { h = 170; w = h * ratio; }
+    cn.extras.push({ id, side, im, name: 'Logo extra ' + cn.extraSeq, box: [324 - w / 2, 510 - h / 2, w, h] });
+    cn.edit.on = true; cnSetSel([{ side, id }]);
+    cnRenderControls(); cnRender();
+    toast('Logo extra agregado · arrástralo, escálalo o recórtalo con las manijas', 'ok');
+  }).catch(e => toast(e.message || 'No se pudo cargar el logo', 'err'));
+}
+function cnDelSelectedExtras() {
+  const ids = cn.sels.filter(s => s.id[0] === 'x').map(s => s.id); if (!ids.length) return;
+  cn.extras = cn.extras.filter(e => !ids.includes(e.id));
+  ids.forEach(id => { delete cn.pos.front[id]; delete cn.pos.back[id]; });
+  cnSetSel(cn.sels.filter(s => !ids.includes(s.id)));
+  cnRenderControls(); cnRender();
+}
+function cnDelExtra(id) { cnSetSel([{ side: (cn.extras.find(e => e.id === id) || {}).side, id }]); cnDelSelectedExtras(); }
+function cnExtrasHtml() {
+  const list = cn.extras.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;"><span>${escapeHtml(e.name)} <span class="hint" style="display:inline">· ${e.side === 'front' ? 'frente' : 'reverso'}</span></span><a href="#" onclick="cnDelExtra('${e.id}');return false;">Quitar</a></div>`).join('');
+  return `<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--panel-border);">
+    <label class="flabel" style="margin:0;">Logos extra</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <label class="btn" style="justify-content:center;cursor:pointer;">＋ En el frente<input type="file" accept=".svg,.png,.jpg,.jpeg" style="display:none" onchange="cnAddExtra(event,'front')"></label>
+      <label class="btn" style="justify-content:center;cursor:pointer;">＋ En el reverso<input type="file" accept=".svg,.png,.jpg,.jpeg" style="display:none" onchange="cnAddExtra(event,'back')"></label>
+    </div>
+    ${list || '<p class="hint" style="margin:0;">Sube SVG, PNG o JPG. Cada logo extra se puede mover, escalar y recortar.</p>'}
+  </div>`;
+}
+function cnEditPanelHtml() {
+  const posCount = Object.keys(cn.pos.front).length + Object.keys(cn.pos.back).length;
+  if (!cn.edit.on) return '<p class="hint" style="margin:0 0 10px;">Actívala para arrastrar logos, textos, foto y QR directamente sobre el carnet, con guías de alineación como en Canva. Al desactivarla, las posiciones se conservan.</p>' + (posCount ? '<button class="btn" style="width:100%;justify-content:center;" onclick="cnResetAllPos()">Restablecer todas las posiciones</button>' : '');
+  const optOf = side => Object.entries(CN_EL_NAMES[side]).map(([id, n]) => `<option value="${side}:${id}" ${cn.sel && cn.sel.side === side && cn.sel.id === id && cn.sels.length === 1 ? 'selected' : ''}>${n}</option>`).join('');
+  const ex = cn.extras.map(e => `<option value="${e.side}:${e.id}" ${cn.sel && cn.sel.id === e.id && cn.sels.length === 1 ? 'selected' : ''}>${escapeHtml(e.name)} (${e.side === 'front' ? 'frente' : 'reverso'})</option>`).join('');
+  const bt = 'class="btn" style="justify-content:center;padding:8px 4px;"';
+  const multi = cn.sels.length > 1, n = cn.sels.length;
+  const p = cn.sel ? cnPosOf(cn.sel.side, cn.sel.id) : { s: 100 };
+  const hasExtra = cn.sels.some(s => s.id[0] === 'x'), hasCrop = cn.sels.some(s => { const q = (cn.pos[s.side] || {})[s.id]; return q && q.crop && (q.crop.l || q.crop.t || q.crop.r || q.crop.b); });
+  let h = `<div style="display:flex;flex-direction:column;gap:16px;">
+    <p class="hint" style="margin:0;">Clic en un elemento y arrástralo. <b>Esquinas</b> = tamaño · <b>centros</b> de cada lado = recorte (logos). <b>Ctrl / ⌘ / Shift + clic</b> suma o quita elementos y se mueven o escalan juntos. Líneas rosadas = guías; <b>Alt</b> = sin imán. Flechas = 1 px (Shift = 10 px). <b>Supr</b> borra un logo extra.</p>
+    <div class="field" style="margin:0;"><label class="flabel" style="margin-bottom:6px;">${multi ? n + ' elementos seleccionados' : 'Elemento seleccionado'}</label>
+      <select style="width:100%" onchange="cnSelect(this.value)"><option value="">${multi ? '— varios (elige uno para ver solo ese) —' : '— ninguno —'}</option><optgroup label="Frente">${optOf('front')}</optgroup><optgroup label="Reverso">${optOf('back')}</optgroup>${ex ? `<optgroup label="Logos extra">${ex}</optgroup>` : ''}</select></div>`;
+  if (cn.sels.length) {
+    h += `<div class="field" style="margin:0;"><label class="flabel" style="margin-bottom:8px;">Alinear ${multi ? 'el bloque' : ''} a la tarjeta</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        <button ${bt} onclick="cnAlign('l')">⇤ Izquierda</button><button ${bt} onclick="cnAlign('c')">↔ Centro</button><button ${bt} onclick="cnAlign('r')">Derecha ⇥</button>
+        <button ${bt} onclick="cnAlign('t')">⤒ Arriba</button><button ${bt} onclick="cnAlign('m')">↕ Medio</button><button ${bt} onclick="cnAlign('b')">⤓ Abajo</button>
+      </div></div>`;
+    if (multi) h += `<div class="field" style="margin:0;"><label class="flabel" style="margin-bottom:8px;">Alinear entre sí</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        <button ${bt} onclick="cnAlignAmong('l')">⇤ Izq.</button><button ${bt} onclick="cnAlignAmong('c')">↔ Centro</button><button ${bt} onclick="cnAlignAmong('r')">Der. ⇥</button>
+        <button ${bt} onclick="cnAlignAmong('t')">⤒ Arriba</button><button ${bt} onclick="cnAlignAmong('m')">↕ Medio</button><button ${bt} onclick="cnAlignAmong('b')">⤓ Abajo</button>
+      </div></div>`;
+    h += `<div class="field" style="margin:0;padding:4px 0 2px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px;"><label class="flabel" style="margin:0;">${multi ? 'Tamaño del grupo' : 'Tamaño'}</label><b><span id="cnScaleVal">${multi ? 100 : p.s}</span> %</b></div>
+      <input type="range" min="30" max="250" value="${multi ? 100 : p.s}" style="width:100%;margin:0;" oninput="cnSetScale(this.value)"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+      ${hasCrop ? `<button class="btn" style="width:100%;justify-content:center;" onclick="cnClearCrop()">Quitar recorte</button>` : ''}
+      ${hasExtra ? `<button class="btn" style="width:100%;justify-content:center;" onclick="cnDelSelectedExtras()">Eliminar logo extra</button>` : ''}
+      <button class="btn" style="width:100%;justify-content:center;" onclick="cnResetEl()">Restablecer ${multi ? 'estos elementos' : 'este elemento'}</button>
+    </div>`;
+  }
+  return h + `<button class="btn" style="width:100%;justify-content:center;" onclick="cnResetAllPos()">Restablecer todas las posiciones</button></div>`;
+}
+function cnEditPanelRender() { const el = document.getElementById('cnEditPanel'); if (el) el.innerHTML = cnEditPanelHtml(); }
+document.addEventListener('keydown', e => {
+  if (!cn.edit.on || !cn.sels.length) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) return;
+  const v = document.getElementById('view-carnet'); if (!v || !v.offsetParent) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (cn.sels.some(s => s.id[0] === 'x')) { e.preventDefault(); cnDelSelectedExtras(); } return; }
+  if (!/^Arrow/.test(e.key)) return;
+  const st = e.shiftKey ? 10 : 1;
+  cn.sels.forEach(sl => {
+    const p = cnEnsurePos(sl.side, sl.id);
+    if (e.key === 'ArrowLeft') p.dx -= st; if (e.key === 'ArrowRight') p.dx += st; if (e.key === 'ArrowUp') p.dy -= st; if (e.key === 'ArrowDown') p.dy += st;
+  });
+  cn.grp = null; e.preventDefault(); cnRender();
+});
 
 /* ---------- Imágenes ---------- */
 function cnUpload(evt, key) {
@@ -5718,6 +6439,23 @@ function cnIn(label, expr, val, multi) {
 function cnRng(label, key, min, max) {
   return `<div class="field"><label class="flabel">${label} <span class="val">${cn[key]}</span></label><input type="range" min="${min}" max="${max}" value="${cn[key]}" oninput="cn.${key}=parseFloat(this.value);this.closest('.field').querySelector('.val').textContent=this.value;cnRender()"></div>`;
 }
+function cnChk(label, expr, val) { return `<label class="check-row"><input type="checkbox" ${val ? 'checked' : ''} onchange="${expr}=this.checked;cnRender()"> ${label}</label>`; }
+function cnRngE(label, expr, val, min, max) {
+  return `<div class="field"><label class="flabel">${label} <span class="val">${val}</span></label><input type="range" min="${min}" max="${max}" value="${val}" oninput="${expr}=parseFloat(this.value);this.closest('.field').querySelector('.val').textContent=this.value;cnRender()"></div>`;
+}
+function cnLgSide(side, title, defCol) {
+  const g = cn.lg[side], p = 'cn.lg.' + side;
+  return `<p class="flabel" style="margin:6px 0 4px;font-weight:800;">${title}</p>` +
+    cnChk('Mostrar escudo', p + '.crest', g.crest) + cnIn('Texto del logo (Enter = nueva línea)', p + '.text', g.text, 2) +
+    cnRngE('Tamaño del escudo %', p + '.crestScale', g.crestScale, 40, 160) + cnRngE('Tamaño del texto del logo %', p + '.textScale', g.textScale, 50, 170) +
+    cnRngE('Tamaño del texto lateral %', p + '.sideScale', g.sideScale, 50, 150) + cnChk('Mostrar separador(es)', p + '.sep', g.sep) +
+    `<div class="field"><label class="flabel">Color del logo, separador y texto lateral</label><input type="color" value="${g.color || defCol}" oninput="${p}.color=this.value;cnRender()"></div>`;
+}
+function cnLgImg(key) {
+  const t = cn.tf[key], p = `cn.tf.${key}`;
+  if (!cn.img[key]) return `<p class="hint"><b>${CN_IMG_LABELS[key]}:</b> sube la imagen en «Reverso — imágenes» para poder moverla y cambiar su tamaño.</p>`;
+  return `<p class="flabel" style="margin:6px 0 4px;font-weight:800;">${CN_IMG_LABELS[key]}</p>` + cnRngE('Tamaño %', p + '.s', t.s, 30, 250) + cnRngE('Mover horizontal', p + '.dx', t.dx, -300, 300) + cnRngE('Mover vertical', p + '.dy', t.dy, -300, 300);
+}
 function cnRenderControls() {
   const b = 'cn.back';
   const modeBody = cn.other
@@ -5726,7 +6464,14 @@ function cnRenderControls() {
     : `<p class="hint" style="margin-bottom:10px;">Limpia los logos y textos de unidad del carnet. Solo quedan el logo horizontal «Gobierno de El Salvador» (arriba del frente) y el logo vertical «Gobierno de El Salvador» (abajo, centrado en ambas caras).</p>
        <button class="btn primary" style="width:100%;justify-content:center;" onclick="cnSetOther(true)">Soy de otro ministerio o dirección</button>`;
   document.getElementById('cnRight').innerHTML =
+    cardWrap('cnEdit', ICONS.layers, 'Edición personalizada (arrastrar)',
+      `<label class="check-row"><input type="checkbox" ${cn.edit.on ? 'checked' : ''} onchange="cnToggleEdit(this.checked)"> Activar edición libre</label><div id="cnEditPanel" style="margin-top:12px;">${cnEditPanelHtml()}</div>${cnExtrasHtml()}`) +
     cardWrap('cnMode', ICONS.shield, 'Institución', modeBody) +
+    (cn.other ? cardWrap('cnLg', ICONS.shield, 'Edición completa de logos',
+      '<p class="hint" style="margin-bottom:8px;">Edita cada parte de los logos: escudo, texto, tamaños, separadores, colores y la posición de tus imágenes.</p>' +
+      cnLgSide('front', 'Logo del frente', cn.accent) + cnLgSide('back', 'Logo del reverso', '#ffffff') +
+      ['prog', 'logoA', 'logoB'].map(cnLgImg).join('') +
+      '<button class="btn" style="width:100%;justify-content:center;margin-top:8px;" onclick="cnLgReset()">Restablecer edición de logos</button>') : '') +
     cardWrap('cnFront', ICONS.shield, 'Frente — datos', cnIn('Nombre (se ajusta solo en varias líneas)', 'cn.name', cn.name, 2) + cnIn('Etiqueta del ID', 'cn.idLabel', cn.idLabel) + cnIn('Número de ID', 'cn.idValue', cn.idValue) + (cn.other ? cnIn('Texto a la derecha del separador (opcional · Enter = nueva línea)', 'cn.o.front', cn.o.front, 2) + '<p class="hint">Vacío = el logo «Gobierno de El Salvador» queda centrado. Con texto, el logo pasa a la izquierda y aparece 1 separador.</p>' : cnIn('Unidad / dirección (Enter = nueva línea)', 'cn.unit', cn.unit, 2))) +
     cardWrap('cnPhoto', ICONS.image, 'Foto', cnUp('photo', 'Foto de la persona', !!cn.photo, cn.photo && cn.photo.originalName) + cnRng('Zoom %', 'zoom', 100, 300) + cnRng('Mover horizontal', 'px', -200, 200) + cnRng('Mover vertical', 'py', -200, 200)) +
     cardWrap('cnBack', ICONS.layers, 'Reverso — textos', cnIn('Línea 1 (contacto)', b + '.c1', cn.back.c1) + cnIn('Línea 2 (correo)', b + '.c2', cn.back.c2) + cnIn('Enlace del QR (Documentos)', b + '.qrLink', cn.back.qrLink) + '<p class="hint" id="cnQrHint"></p>' + cnIn('Texto bajo el QR', b + '.qrLabel', cn.back.qrLabel) + cnIn('Etiqueta "Becado por"', b + '.becado', cn.back.becado) + cnIn('Institución', b + '.becadoVal', cn.back.becadoVal) + (cn.other ? cnIn('Sub-bloque 1 del reverso (opcional)', 'cn.o.unit', cn.o.unit, 2) + cnIn('Sub-bloque 2 del reverso (opcional)', 'cn.o.sub', cn.o.sub, 2) + '<p class="hint">Cada sub-bloque con texto agrega 1 separador junto al escudo. Vacíos = el escudo queda centrado.</p>' : cnIn('Subunidad (Enter = nueva línea)', 'cn.subUnit', cn.subUnit, 2)) + cnIn('Fecha de emisión', b + '.emision', cn.back.emision) + cnIn('Validez', b + '.valid', cn.back.valid) + cnIn('Dirección', b + '.addr', cn.back.addr, 3)) +
@@ -5735,12 +6480,21 @@ function cnRenderControls() {
       <div class="field"><label class="flabel">Color de acento (logo y unidad, frente)</label><input type="color" value="${cn.accent}" oninput="cn.accent=this.value;cnRender()"></div>
       <div class="field"><label class="flabel">Fondo del reverso</label><input type="color" value="${cn.back.bg}" oninput="cn.back.bg=this.value;cnRender()"></div>
       <label class="check-row"><input type="checkbox" ${cn.back.wm ? 'checked' : ''} onchange="cn.back.wm=this.checked;cnRender()"> Escudo de fondo en el reverso</label>`) +
-    cardWrap('cnExp', ICONS.download, 'Exportar', `<button class="btn primary" style="width:100%;justify-content:center;" onclick="cnExportBoth(2)">${ICONS.download} Descargar frente y reverso (PNG)</button>
-      <div class="field-row"><button class="btn" style="justify-content:center;" onclick="cnExport('front',2)">Solo frente</button><button class="btn" style="justify-content:center;" onclick="cnExport('back',2)">Solo reverso</button></div>
-      <p class="hint">Se exportan a 1296 × 2040 px (2×). Los datos no se guardan al recargar la página.</p>`);
+    cardWrap('cnExp', ICONS.download, 'Exportar', `
+      <div class="field"><label class="flabel" style="margin-bottom:8px;">Formato</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <label class="check-row"><input type="radio" name="cnFmt" ${cn.fmt === 'png' ? 'checked' : ''} onchange="cnSetFmt('png')"> PNG (imagen)</label>
+          <label class="check-row"><input type="radio" name="cnFmt" ${cn.fmt === 'svg' ? 'checked' : ''} onchange="cnSetFmt('svg')"> SVG (vectorial)</label>
+        </div></div>
+      <button class="btn primary" id="cnFmtBoth" style="width:100%;justify-content:center;margin-bottom:10px;" onclick="cnExportBoth(2)">${ICONS.download} Descargar frente y reverso (${cn.fmt.toUpperCase()})</button>
+      <div class="field-row" style="gap:8px;"><button class="btn" style="justify-content:center;" onclick="cnExport('front',2)">Solo frente</button><button class="btn" style="justify-content:center;" onclick="cnExport('back',2)">Solo reverso</button></div>
+      <p class="hint" id="cnFmtHint">${cn.fmt === 'png' ? 'PNG a 1296 × 2040 px (2×).' : 'SVG vectorial de 648 × 1020, editable en Illustrator, Inkscape o Figma. Las fuentes se referencian por nombre.'}</p>
+      <p class="hint">Los recuadros y guías de edición no se exportan. Los datos no se guardan al recargar la página.</p>`);
 }
 
 function initCarnetTool() {
+  /* Todos los menús del carnet empiezan plegados */
+  ['cnEdit', 'cnMode', 'cnLg', 'cnFront', 'cnPhoto', 'cnBack', 'cnImgs', 'cnColor', 'cnExp'].forEach(k => { collapseState[k] = true; });
   const root = document.getElementById('view-carnet');
   root.innerHTML = `
     <header class="topbar">

@@ -37,8 +37,8 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 
 | Herramienta | Qué hace | Resultado |
 |---|---|---|
-| **Insertar Marca de Agua** | Coloca el escudo, el logo del ministerio o texto (*Documento Oficial*, *Borrador*, *Confidencial*) sobre un PDF | PDF con marca de agua |
-| **Crear Logotipo** | Compone un logotipo horizontal o vertical: escudo + hasta 3 bloques (ministerio, dirección, unidad) | Logotipo institucional |
+| **Insertar Marca de Agua** | Coloca el escudo oficial (4 presets del manual), tu propio logo o texto (*Documento Oficial*, *Borrador*, *Confidencial*) sobre un PDF | PDF con marca de agua |
+| **Crear Logotipo** | Compone un logotipo en 4 modos (escudo solo, horizontal, vertical, escudo + línea + ministerio) + hasta 3 bloques (ministerio, dirección, unidad) | Logotipo institucional |
 | **Crear Animación** | Genera un video de intro u outro estilo Cadena Nacional | Archivo de video real |
 | **Crear Carnet** | Diseña el carnet institucional (frente y reverso) con foto, nombre, ID, QR y logos | PNG de alta resolución (2×) |
 
@@ -59,13 +59,26 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 
 | Función | Detalle |
 |---|---|
-| Documento | Sube un PDF y trabaja sobre sus páginas |
-| Tipos de marca | Escudo institucional, logo del ministerio o texto |
+| Documento | Sube un PDF y trabaja sobre sus páginas. **Usar otro PDF** reemplaza el documento (avisa antes si hay marcas colocadas) y **Quitar documento** lo elimina, ambos con confirmación |
+| Tipos de marca | Escudo institucional (presets), tu propio logo SVG/PNG/JPG o texto |
 | Textos rápidos | Documento Oficial, Borrador, Confidencial o texto personalizado |
 | Transparencia | **5 %** recomendado por el manual (ajustable con deslizador y atajos 5 / 25 / 50 / 75 / 100 %) |
-| Posición | Centrar horizontal, vertical o en página; bloquear, duplicar y eliminar objetos |
+| Posición | Alinear a la **izquierda**, al **centro** o a la **derecha**; centrar en vertical o en la página; bloquear, duplicar y eliminar objetos |
 | Tipografía | Fuentes PDF estándar y fuente propia (`.ttf`, `.otf`, `.woff`) |
 | Alcance | Aplicar a páginas seleccionadas del documento |
+| Ventana de carga | Aparece al subir o quitar el PDF, al preparar un escudo, al restablecer y al **exportar** |
+| Restablecer | Quita todas las marcas de agua y rotaciones; el PDF se conserva. Pide confirmación y se puede deshacer con `Ctrl+Z` |
+
+**Escudo oficial (menú «Agregar marca de agua»).** Presets según el manual, todos con **5 %** de opacidad:
+
+| Preset | Descripción | Posición inicial |
+|---|---|---|
+| **Escudo solo** | Escudo con su anillo de estrellas, sin texto | Centrado en la página |
+| **Escudo + «Gobierno de El Salvador»** | Horizontal: `GOBIERNO DE │ escudo │ EL SALVADOR` | Centrado |
+| **Escudo + texto vertical** | Escudo arriba y leyenda debajo | Centrado |
+| **Escudo grande de fondo** | Mitad izquierda del escudo a casi todo el alto de la hoja (carta), como en la portada del manual | Pegado al borde derecho |
+
+> El texto del preset horizontal usa Georgia, porque la tipografía del manual (Bembo) no está disponible en el navegador.
 
 ---
 
@@ -80,6 +93,17 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
  └──────────┘                Escudo + | Ministerio | Dirección | Unidad
 ```
 
+**Modos del logo (bloque institucional).** El selector «Modo del logo» cubre las aplicaciones del manual:
+
+| Modo | Resultado |
+|---|---|
+| **Escudo solo** | Solo el escudo con sus estrellas, sin texto |
+| **Horizontal** | `GOBIERNO DE │ escudo │ EL SALVADOR` (líneas 1 y 2 del texto) |
+| **Vertical con leyenda** | Escudo arriba y la leyenda debajo (versión principal) |
+| **Escudo + línea + ministerio** | Escudo, línea fina y el nombre de la institución debajo; el texto inicia como «MINISTERIO DE» para que lo completes |
+
+La línea fina también puede activarse en el modo vertical. Todos los modos se exportan igual en SVG y PNG.
+
 **Color del bloque institucional.** En los módulos *Color* y *Color de sub bloques* hay una sección desplegable, «Color del bloque institucional» (escudo + «Gobierno de El Salvador»), con interruptor, colores del Manual, selector libre, campo HEX y botón **Azul oficial**. Es el mismo editor en ambos módulos. Con el color propio activo tiene **prioridad** sobre el color global y el color común de sub bloques; apagado, todo funciona como antes.
 
 **Panel de controles** (todos los módulos inician plegados):
@@ -87,7 +111,7 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 | Módulo | Para qué sirve |
 |---|---|
 | Guía de marca | Referencia rápida del manual |
-| Institucional | Escudo oficial vectorial, orientación (vertical / horizontal) y opción de usar tu propia imagen |
+| Institucional | Escudo oficial vectorial, **modo del logo**, orientación (vertical / horizontal), línea fina y opción de usar tu propia imagen |
 | Bloques | Hasta 3 bloques de texto: ministerio, dirección y unidad |
 | Tipografía | Fuente, tamaño y fuente personalizada |
 | Separadores | Líneas divisorias entre bloques |
@@ -162,7 +186,11 @@ Carnet institucional de 648 × 1020 px (frente y reverso), exportable a **1296 �
 | Reverso — textos | Contacto, correo, **enlace del QR (Documentos)**, etiqueta bajo el QR, institución becaria, fechas y dirección |
 | Reverso — imágenes | QR propio, logo izquierdo (institución) y logos del proyecto / derecho |
 | Colores | Encabezado, acento y fondo del reverso; escudo de fondo activable |
+| Edición personalizada | Activa la edición libre: arrastra logos, textos, foto y QR sobre el carnet con guías de alineación tipo Canva; las posiciones se conservan al desactivarla |
+| Logos extra | Agrega logos SVG/PNG/JPG en el frente o el reverso; cada uno se puede mover, escalar y recortar |
 | Exportar | Frente y reverso juntos o por separado |
+
+Todos los menús del carnet inician **plegados**.
 
 **Logos preestablecidos.** El *logo del proyecto* (Proyecto Continuidad) y el *logo derecho* (Florecimiento Salvadoreño) son fijos y se cargan solos desde dos archivos que viven **al lado de `index.html`**:
 
@@ -195,9 +223,10 @@ Carnet institucional de 648 × 1020 px (frente y reverso), exportable a **1296 �
 |---|---|
 | 🖥️ 100 % en el navegador | No hay servidor; los archivos que subes no salen de tu equipo |
 | 📦 Un solo archivo de código | Todo el código vive en `index.html`; los logos del carnet, el manual, el manifest y el service worker son archivos aparte |
-| 🗂️ Módulos plegados | Todos los paneles inician cerrados para una interfaz limpia |
+| 🗂️ Módulos plegados | Todos los paneles (incluidos los del carnet) inician cerrados para una interfaz limpia |
 | 💾 Guardar / Cargar proyecto | Guarda tu configuración en el navegador y retómala después |
-| ♻️ Restablecer | Vuelve a los valores iniciales |
+| ♻️ Restablecer | Vuelve a los valores iniciales, con aviso de confirmación antes de aplicarlo |
+| ⏳ Ventanas de carga y avisos | Las acciones pesadas muestran una ventana de carga y las destructivas piden confirmación |
 | 🌗 Modo claro / oscuro | Botón de tema en la barra superior |
 | 🛡️ Escudo vectorial oficial | Se mantiene nítido a cualquier tamaño |
 | 📖 Manual de Uso de Marca | Botón en el inicio que abre el PDF del manual en una pestaña nueva |
