@@ -4338,7 +4338,8 @@ const anim = {
   fxOut: 'fade',           // efecto de SALIDA (desaparecer)
   fxIntensity: 1,          // multiplicador de distancia / zoom / difuminado
   durationSec: 6,
-  cn: { tri: 'draw', tip: true, emblem: 'bloom', stars: 'pop', dir: 1, glow: true, glowColor: '#5F73FF', halo: false, sparks: false, shine: false, breathe: true },   // personalización del estilo Cadena Nacional
+  speed: 1,                // velocidad de la animación (0.25×–3×): acorta o alarga el tiempo real sin cambiar la secuencia
+  cn: { tri: 'draw', tip: true, emblem: 'bloom', stars: 'pop', dir: 1, glow: true, glowColor: '#5F73FF', halo: false, sparks: false, shine: false, breathe: true, brush: true, orbs: true, videoPace: true },   // personalización del estilo Cadena Nacional
   flash: true,            // Cadena Nacional: destello (onda) al completarse el escudo
   seq: 'auto',            // 'auto' (según Intro/Outro) | 'crestLogoCrest' (escudo → logo → escudo) | 'logoOnly' (solo el logo editado)
   introSec: 5, holdSec: 2, outroSec: 5,   // modo Intro + Outro: duración de cada tramo (segundos)
@@ -4357,6 +4358,20 @@ let animExporting = false;
 let animAssetsDirty = true;
 
 /* ---------- Easing ---------- */
+/* Duración real (segundos) = duración de la animación ÷ velocidad */
+function animRealDur() { return Math.max(0.3, anim.durationSec / Math.max(0.1, anim.speed || 1)); }
+function animSetSpeed(v, rerender) {
+  const wasPlaying = animPlaying;
+  const frac = animCurTime / animRealDur();
+  anim.speed = clamp(Math.round(v * 100) / 100, 0.25, 3);
+  animCurTime = frac * animRealDur();
+  if (rerender === false) {   // al arrastrar el deslizador: solo actualiza textos (no reconstruye el panel)
+    const l = document.getElementById('animSpeedVal'); if (l) l.textContent = anim.speed.toFixed(2).replace(/0$/, '') + '×';
+    const h = document.getElementById('animSpeedHint'); if (h) h.innerHTML = anim.speed !== 1 ? `Dura <b>${animRealDur().toFixed(1)} s</b> en lugar de ${anim.durationSec.toFixed(1)} s.` : 'Normal (1×). Sube para acelerar, baja para ver la animación en cámara lenta.';
+    animRender();
+  } else { renderAnimControls(); animRender(); }
+  if (wasPlaying) { animPlayStart = performance.now() - animCurTime * 1000; }
+}
 function animSyncBothDuration() {
   if (anim.mode === 'both' && anim.seq === 'auto') anim.durationSec = Math.round((anim.introSec + anim.holdSec + anim.outroSec) * 10) / 10;
 }
@@ -4597,7 +4612,25 @@ function animStars() {
 
 /* Estilo Cadena Nacional (logo institucional + editado): el escudo se construye por partes
    (triángulo → emblema → estrellas), retrocede con un resplandor y deja armado el logo completo. */
-const ANIM_CN_DEFAULT = { tri: 'draw', tip: true, emblem: 'bloom', stars: 'pop', dir: 1, glow: true, glowColor: '#5F73FF', halo: false, sparks: false, shine: false, breathe: true };
+const ANIM_CN_DEFAULT = { tri: 'draw', tip: true, emblem: 'bloom', stars: 'pop', dir: 1, glow: true, glowColor: '#5F73FF', halo: false, sparks: false, shine: false, breathe: true, brush: true, orbs: true, videoPace: true };
+/* Orbes de luz (bokeh) que giran alrededor del escudo mientras se completa y retrocede, como en el video de referencia. */
+function animOrbs(ctx, rect, tt, color) {
+  if (tt <= 0 || tt >= 1) return;
+  const N = 18, cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2, env = Math.pow(Math.sin(Math.PI * tt), 1.1);
+  ctx.save();
+  for (let i = 0; i < N; i++) {
+    const f1 = (i * 0.618) % 1, f2 = (i * 0.381 + 0.17) % 1;
+    const ang = (i / N) * Math.PI * 2 + tt * 1.6 * (i % 2 ? 1 : -0.7);
+    const rad = rect.w * (0.46 + 0.14 * f1);
+    const x = cx + Math.cos(ang) * rad, y = cy + Math.sin(ang) * rad * (rect.h / rect.w);
+    const r = Math.max(2, rect.w * (0.03 + 0.05 * f2));
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const a = env * (0.35 + 0.5 * f2);
+    g.addColorStop(0, animRgba(color, a)); g.addColorStop(0.55, animRgba(color, a * 0.45)); g.addColorStop(1, animRgba(color, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
 function animRgba(hex, a) {
   let h = String(hex || '#5F73FF').replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join('');
   const n = parseInt(h, 16) || 0; return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
@@ -4606,6 +4639,8 @@ let animShineCanvas = null;
 function animDrawCadena(ctx, W, H, p) {
   const A = animAssets, VB = CREST_VB;
   const cn = Object.assign({}, ANIM_CN_DEFAULT, anim.cn || {});
+  /* Ritmo del video de referencia: construcción ágil (30 %), retroceso con orbes (20 %) y logo estable el resto del tiempo */
+  if (cn.videoPace !== false) { const a = 0.30, b = 0.50; p = p < a ? (p / a) * 0.70 : p < b ? 0.70 + ((p - a) / (b - a)) * 0.20 : 0.90 + ((p - b) / (1 - b)) * 0.10; }
   const CF = anim.measures.crestFrac / 100, FF = anim.measures.fullFrac / 100;
   const crestR = VB.w / VB.h;
   const sizeRect = (frac, ratio) => { const b = Math.min(W, H) * frac; return ratio >= 1 ? { w: b, h: b / ratio } : { w: b * ratio, h: b }; };
@@ -4669,9 +4704,25 @@ function animDrawCadena(ctx, W, H, p) {
       // 2) interior del triángulo (volcán, sol, rayos)
       const e2 = animEaseOutCubic(clamp((p - 0.12) / 0.16, 0, 1));
       if (e2 > 0) {
-        ctx.save(); ctx.globalAlpha = fadeIn * e2;
+        ctx.save();
         ctx.beginPath(); ctx.moveTo(tri[0][0], tri[0][1] - 18); ctx.lineTo(tri[1][0] + 5, tri[1][1] + 4); ctx.lineTo(tri[2][0] - 5, tri[2][1] + 4); ctx.closePath(); ctx.clip();
-        drawImg(A.crestLayers.body); ctx.restore();
+        if (cn.brush !== false) {
+          // pincelada diagonal: el volcán y el sol se revelan barriendo de la esquina superior derecha a la inferior izquierda
+          const vx = -0.55, vy = 0.835, wx = -vy, wy = vx, thr = 1.2 + (87 - 1.2) * animEaseInOutCubic(clamp((p - 0.12) / 0.20, 0, 1));
+          const Fx = vx * thr, Fy = vy * thr, L = 300;
+          ctx.save(); ctx.beginPath();
+          ctx.moveTo(Fx + wx * L, Fy + wy * L); ctx.lineTo(Fx - wx * L, Fy - wy * L);
+          ctx.lineTo(Fx - wx * L - vx * 400, Fy - wy * L - vy * 400); ctx.lineTo(Fx + wx * L - vx * 400, Fy + wy * L - vy * 400);
+          ctx.closePath(); ctx.clip();
+          ctx.globalAlpha = fadeIn; drawImg(A.crestLayers.body); ctx.restore();
+          const fr = clamp((p - 0.12) / 0.20, 0, 1);
+          if (fr > 0 && fr < 1) {   // estela suave en el borde de la pincelada
+            ctx.save(); ctx.globalAlpha = fadeIn * 0.4 * Math.sin(Math.PI * fr); ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.lineCap = 'round';
+            ctx.shadowColor = col; ctx.shadowBlur = 9;
+            ctx.beginPath(); ctx.moveTo(Fx + wx * 45, Fy + wy * 45); ctx.lineTo(Fx - wx * 45, Fy - wy * 45); ctx.stroke(); ctx.restore();
+          }
+        } else { ctx.globalAlpha = fadeIn * e2; drawImg(A.crestLayers.body); }
+        ctx.restore();
       }
       // 3) banderas, laureles y cinta "florecen" desde la base
       const t3 = clamp((p - 0.26) / 0.22, 0, 1), e3 = animEaseInOutCubic(t3);
@@ -4726,6 +4777,7 @@ function animDrawCadena(ctx, W, H, p) {
         ctx.beginPath(); ctx.arc(CX, CY, 92 + 46 * animEaseOutCubic(t5), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       }
     });
+    if (cn.orbs !== false) animOrbs(ctx, rr, (p - 0.58) / 0.32, cn.glowColor);
     return;
   }
 
@@ -4746,6 +4798,7 @@ function animDrawCadena(ctx, W, H, p) {
   ctx.globalAlpha = eu;
   ctx.drawImage(A.instCrestImg || A.crestImg, rect.x, rect.y, rect.w, rect.h);
   ctx.restore();
+  if (cn.orbs !== false) animOrbs(ctx, rect, (p - 0.58) / 0.32, cn.glowColor);
 }
 
 function animDrawFx(ctx, img, W, H, frac, q, ratio, effect, isIn) {
@@ -4805,6 +4858,7 @@ function animDrawFrame(ctx, tSec) {
   else if (anim.bgType === 'image' && animAssets.bgImg) animDrawCover(ctx, animAssets.bgImg, W, H);
   else { ctx.fillStyle = anim.bgColor; ctx.fillRect(0, 0, W, H); }
 
+  tSec = tSec * Math.max(0.1, anim.speed || 1);   // tiempo real → tiempo de animación
   const dur = Math.max(0.5, anim.durationSec);
   const fi = anim.fxIn, fo = anim.fxOut;
   const crestR = CREST_VB.w / CREST_VB.h;
@@ -4978,13 +5032,13 @@ function animRender() {
   animUpdateTimelineUI();
 }
 function animUpdateTimelineUI() {
-  const pct = clamp(animCurTime / Math.max(0.5, anim.durationSec), 0, 1) * 100;
+  const pct = clamp(animCurTime / animRealDur(), 0, 1) * 100;
   const fill = document.getElementById('animTimelineFill');
   const handle = document.getElementById('animTimelineHandle');
   if (fill) fill.style.width = pct + '%';
   if (handle) handle.style.left = pct + '%';
   const label = document.getElementById('animTimeLabel');
-  if (label) label.textContent = animCurTime.toFixed(1) + 's / ' + anim.durationSec.toFixed(1) + 's';
+  if (label) label.textContent = animCurTime.toFixed(1) + 's / ' + animRealDur().toFixed(1) + 's';
 }
 function animPlay() {
   if (animPlaying) return;
@@ -5004,7 +5058,7 @@ function animTogglePlay() { animPlaying ? animPause() : animPlay(); }
 function animLoop() {
   if (!animPlaying) return;
   let t = (performance.now() - animPlayStart) / 1000;
-  if (t >= anim.durationSec) { animPlayStart = performance.now(); t = 0; }
+  if (t >= animRealDur()) { animPlayStart = performance.now(); t = 0; }
   animCurTime = t;
   animRender();
   animRafId = requestAnimationFrame(animLoop);
@@ -5014,7 +5068,7 @@ function animBindTimeline() {
   function seekFromEvent(e) {
     const rect = track.getBoundingClientRect();
     const frac = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-    animCurTime = frac * anim.durationSec;
+    animCurTime = frac * animRealDur();
     animPause();
     animRender();
   }
@@ -5082,7 +5136,7 @@ function animCardMode() {
         <p class="hint" style="margin:4px 0 0;">Una onda delgada se expande y se desvanece cuando el escudo termina de armarse. Opcional.</p>
       </div>` : ''}`).join('')}
     </div>
-    <p class="hint" style="margin:0;"><b>Resultado:</b> ${modeName} · ${seqName} · ${anim.durationSec.toFixed(1)} s</p>
+    <p class="hint" style="margin:0;"><b>Resultado:</b> ${modeName} · ${seqName} · ${animRealDur().toFixed(1)} s</p>
   `);
 }
 
@@ -5110,7 +5164,8 @@ function animCardEffects() {
       <p class="hint" style="margin:0;">Arma tu propia versión del estilo. Cada cambio reinicia la vista previa. Los efectos de entrada y salida clásicos no se usan con este estilo.</p>
       <div class="field"><label class="flabel">Triángulo (primer trazo)</label>
         ${seg('tri', [['draw', 'Se dibuja'], ['fade', 'Aparece']])}
-        ${chk('tip', 'Punta luminosa al dibujar', '')}</div>
+        ${chk('tip', 'Punta luminosa al dibujar', '')}
+        ${chk('brush', 'Pincelada diagonal en el volcán', 'El volcán y el sol se revelan con un barrido diagonal, como en el video de referencia.')}</div>
       <div class="field"><label class="flabel">Emblema (banderas y laureles)</label>
         ${seg('emblem', [['bloom', 'Florece'], ['zoom', 'Zoom'], ['fade', 'Desvanece']])}</div>
       <div class="field"><label class="flabel">Estrellas</label>
@@ -5119,12 +5174,15 @@ function animCardEffects() {
         ${seg('dir', [[1, 'Horario'], [-1, 'Antihorario']])}</div>
       <div class="field"><label class="flabel">Animaciones extra</label>
         ${chk('halo', 'Halo de luz detrás del escudo', 'Brillo suave mientras el escudo se construye.')}
+        ${chk('orbs', 'Orbes de luz alrededor del escudo', 'Esferas luminosas que giran mientras el escudo se completa y retrocede.')}
         ${chk('sparks', 'Chispas desde las estrellas', 'Puntos de luz que salen al completarse el escudo.')}
         ${chk('glow', 'Resplandor al retroceder', 'El escudo brilla mientras vuelve a su lugar en el logo.')}
         ${chk('shine', 'Brillo que cruza el logo final', 'Una franja de luz recorre el logo ya armado.')}
         ${chk('breathe', 'Acercamiento suave al terminar', 'El logo armado crece un poco hasta el final.')}
       </div>
-      <div class="field"><label class="flabel">Color de luz (halo, chispas, resplandor y brillo)</label>
+      <div class="field"><label class="flabel">Ritmo</label>
+        ${chk('videoPace', 'Ritmo del video de referencia', 'Construcción rápida, retroceso con luz y logo estable durante el resto del tiempo. Apagado: ritmo lento y parejo anterior.')}</div>
+      <div class="field"><label class="flabel">Color de luz (halo, orbes, chispas, resplandor y brillo)</label>
         <div class="color-custom-row"><input type="color" value="${c.glowColor}" data-cn-color><input type="text" value="${c.glowColor}" style="width:110px" data-cn-colortext></div></div>
       <button class="btn ghost" type="button" style="width:100%;justify-content:center;" data-cn-reset>Restablecer animación</button>
     `);
@@ -5353,6 +5411,12 @@ function animCardTiming() {
       <input type="range" min="2" max="12" step="0.5" value="${Math.min(12, anim.durationSec)}" data-anim-prop="durationSec">
     </div>`}
     <div class="field">
+      <label class="flabel">Velocidad <span class="val" id="animSpeedVal">${(anim.speed || 1).toFixed(2).replace(/0$/, '')}×</span></label>
+      <input type="range" min="0.25" max="3" step="0.25" value="${anim.speed || 1}" data-anim-prop="speed">
+      <div class="seg" style="margin-top:6px;">${[0.5, 1, 1.5, 2].map(v => `<button type="button" class="${(anim.speed || 1) === v ? 'active' : ''}" onclick="animSetSpeed(${v})">${v}×</button>`).join('')}</div>
+      <p class="hint" id="animSpeedHint">${anim.speed && anim.speed !== 1 ? `Dura <b>${animRealDur().toFixed(1)} s</b> en lugar de ${anim.durationSec.toFixed(1)} s.` : 'Normal (1×). Sube para acelerar, baja para ver la animación en cámara lenta.'}</p>
+    </div>
+    <div class="field">
       <label class="flabel">Resolución</label>
       <select data-anim-prop="resolution">
         ${resOpts.map(r => `<option value="${r.id}" ${curRes===r.id?'selected':''}>${r.label}</option>`).join('')}
@@ -5428,7 +5492,7 @@ function animBindControlEvents() {
     anim.mode = el.dataset.animMode;
     if (anim.mode === 'both') animSyncBothDuration();
     else if (prevMode === 'both') anim.durationSec = 6;
-    if (animCurTime > anim.durationSec) animCurTime = 0;
+    if (animCurTime > animRealDur()) animCurTime = 0;
     renderAnimControls();
     animRender();
     animUpdateTimelineUI();
@@ -5504,11 +5568,13 @@ function animBindControlEvents() {
         const lbl = document.getElementById('animFxVal');
         if (lbl) lbl.textContent = anim.fxIntensity.toFixed(1) + '×';
         animRender();
+      } else if (prop === 'speed') {
+        animSetSpeed(parseFloat(el.value), false);
       } else if (prop === 'durationSec') {
         anim.durationSec = parseFloat(el.value);
         const lbl = document.getElementById('animDurVal');
         if (lbl) lbl.textContent = anim.durationSec.toFixed(1) + 's';
-        animCurTime = clamp(animCurTime, 0, anim.durationSec);
+        animCurTime = clamp(animCurTime, 0, animRealDur());
         animRender();
       } else if (prop === 'introSec' || prop === 'holdSec' || prop === 'outroSec') {
         anim[prop] = parseFloat(el.value);
@@ -5516,7 +5582,7 @@ function animBindControlEvents() {
         const ids = { introSec: 'animIntroVal', holdSec: 'animHoldVal', outroSec: 'animOutroVal' };
         const lbl = document.getElementById(ids[prop]); if (lbl) lbl.textContent = anim[prop].toFixed(1) + 's';
         const tot = document.getElementById('animTotalVal'); if (tot) tot.textContent = anim.durationSec.toFixed(1) + 's';
-        animCurTime = clamp(animCurTime, 0, anim.durationSec);
+        animCurTime = clamp(animCurTime, 0, animRealDur());
         animRender(); animUpdateTimelineUI();
       } else if (prop === 'resolution') {
         const [w, h] = el.value.split('x').map(Number);
@@ -5595,7 +5661,7 @@ async function animExportVideo() {
     const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
 
     recorder.start();
-    const totalFrames = Math.max(1, Math.round(anim.durationSec * anim.fps));
+    const totalFrames = Math.max(1, Math.round(animRealDur() * anim.fps));
     const t0 = performance.now();
     for (let f = 0; f <= totalFrames; f++) {
       animDrawFrame(ctx, f / anim.fps);

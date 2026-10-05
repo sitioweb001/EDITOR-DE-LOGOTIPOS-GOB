@@ -141,7 +141,7 @@ La línea fina también puede activarse en el modo vertical. Todos los modos se 
 | **Animaciones** | Efectos de entrada y salida (desvanecer, deslizar, zoom, difuso, cortinas, abrir) y el efecto **«Desde el divisor (Cadena Nacional)»**: la línea divisoria crece y de ella salen el escudo y el texto; al salir hacen el recorrido inverso |
 | **Contenido** | Usa automáticamente el logotipo creado en *Crear Logotipo*; color del escudo al revelarse y colores del logo completo |
 | **Fondo** | Color (paleta o personalizado en HEX), imagen, transparente o croma |
-| **Duración y resolución** | Duración con deslizador; en *Intro + Outro* tres controles independientes: **Intro**, **Pausa con el logo fijo** y **Outro** |
+| **Duración, velocidad y resolución** | Duración con deslizador; en *Intro + Outro* tres controles independientes: **Intro**, **Pausa con el logo fijo** y **Outro**. **Velocidad** de 0.25× a 3× (atajos 0.5×, 1×, 1.5×, 2×): la duración real del video es la duración ÷ la velocidad (por ejemplo, 6 s a 2× dura 3 s); afecta a la vista previa, a la línea de tiempo y al video exportado |
 | **Exportar** | Genera el archivo de video (MP4 si el navegador lo permite; si no, WebM) |
 
 **Estilo de animación (en *Tipo de video*, paso 2; se elige uno):**
@@ -157,11 +157,13 @@ La línea fina también puede activarse en el modo vertical. Todos los modos se 
 
 | Parte | Opciones |
 |---|---|
-| Triángulo | Se dibuja / Aparece; punta luminosa |
+| Triángulo | Se dibuja / Aparece; punta luminosa; **pincelada diagonal** que revela el volcán y el sol |
 | Emblema | Florece / Zoom / Desvanece |
 | Estrellas | Una por una / Barrido / Juntas; sentido horario o antihorario |
-| Animaciones extra | Halo de luz, chispas desde las estrellas, resplandor al retroceder, brillo que cruza el logo final, acercamiento suave final |
+| Animaciones extra | Halo de luz, **orbes de luz que giran alrededor del escudo**, chispas desde las estrellas, resplandor al retroceder, brillo que cruza el logo final, acercamiento suave final |
 | Color de luz | Un color para halo, chispas, resplandor y brillo |
+
+**Ritmo del video de referencia** (activado por defecto): la construcción ocupa ~30 % del tiempo, el retroceso con luz ~20 % y el logo queda estable el resto; al apagarlo vuelve el ritmo lento y parejo anterior.
 
 Hay un botón **Restablecer animación**. Los efectos de entrada y salida clásicos no se usan con este estilo. Incluye un interruptor opcional, **Destello al completar el escudo** (una onda delgada que se expande y se desvanece). Con *Intro* se construye y queda armado el logo; con *Outro* se deshace al revés; con *Intro + Outro* se construye, se mantiene y se deshace. Usa la duración única (se recomiendan 6 s o más) y respeta el tamaño del escudo y del logo de *Medidas*. Si el logo usa una imagen propia en lugar del escudo oficial vectorial, cae en la secuencia «Escudo → logo editado → escudo». El archivo se llama `animacion-cadena-nacional-…`.
 
