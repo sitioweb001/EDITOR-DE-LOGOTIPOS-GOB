@@ -39,7 +39,7 @@ Herramienta web para aplicar correctamente la marca de Gobierno en documentos, l
 |---|---|---|
 | **Insertar Marca de Agua** | Coloca el escudo oficial (4 presets del manual), tu propio logo o texto (*Documento Oficial*, *Borrador*, *Confidencial*) sobre un PDF | PDF con marca de agua |
 | **Crear Logotipo** | Compone un logotipo en 4 modos (escudo solo, horizontal, vertical, escudo + línea + ministerio) + hasta 3 bloques (ministerio, dirección, unidad) | Logotipo institucional |
-| **Crear Animación** | Genera un video de intro u outro estilo Cadena Nacional | Archivo de video real |
+| **Crear Animación** | Genera un video de intro u outro estilo Cadena Nacional, con **efectos sonoros y música de fondo** editables | Archivo de video real (con audio) |
 | **Crear Carnet** | Diseña el carnet institucional (frente y reverso) con foto, nombre, ID, QR y logos | PNG de alta resolución (2×) |
 
 ---
@@ -138,11 +138,12 @@ La línea fina también puede activarse en el modo vertical. Todos los modos se 
 | Módulo | Opciones |
 |---|---|
 | **Tipo de video** | Paso 1: **Intro**, **Outro** o **Intro + Outro** (un solo video con intro, pausa con el logo fijo y outro). Paso 2: **estilo de animación** (Clásico, Cadena Nacional, Escudo → logo → escudo o Solo el logo editado), con una explicación de cada uno y un resumen del resultado |
+| **Efectos sonoros** | Módulo nuevo: **sonido general (música de fondo)** y **efectos por momento** preestablecidos con la animación Cadena Nacional, todos editables. Ver [«Efectos sonoros»](#-efectos-sonoros-y-música-de-fondo) |
 | **Animaciones** | Efectos de entrada y salida (desvanecer, deslizar, zoom, difuso, cortinas, abrir) y el efecto **«Desde el divisor (Cadena Nacional)»**: la línea divisoria crece y de ella salen el escudo y el texto; al salir hacen el recorrido inverso |
 | **Contenido** | Usa automáticamente el logotipo creado en *Crear Logotipo*; color del escudo al revelarse y colores del logo completo |
 | **Fondo** | Color (paleta o personalizado en HEX), imagen, transparente o croma |
 | **Duración, velocidad y resolución** | Duración con deslizador; en *Intro + Outro* tres controles independientes: **Intro**, **Pausa con el logo fijo** y **Outro**. **Velocidad** de 0.25× a 3× (atajos 0.5×, 1×, 1.5×, 2×): la duración real del video es la duración ÷ la velocidad (por ejemplo, 6 s a 2× dura 3 s); afecta a la vista previa, a la línea de tiempo y al video exportado |
-| **Exportar** | Genera el archivo de video (MP4 si el navegador lo permite; si no, WebM) |
+| **Exportar** | Genera el archivo de video, sin sonido por defecto o **con audio** si activas *Efectos sonoros* (MP4 + AAC si el navegador lo permite; si no, WebM + Opus) |
 
 **Estilo de animación (en *Tipo de video*, paso 2; se elige uno):**
 
@@ -171,9 +172,71 @@ Hay un botón **Restablecer animación**. Los efectos de entrada y salida clási
 
 **Efecto «Desde el divisor».** Requiere un logo con al menos un separador (por ejemplo, escudo + ministerio). Con el escudo solo, cae en «Abrir horizontal».
 
-**Exportación.** Los cuadros se entregan con ritmo exacto (sin acumular desfase) y el bitrate se ajusta a la resolución. El archivo se nombra según la secuencia: `animacion-intro-…`, `animacion-outro-…`, `animacion-intro-outro-…`, `animacion-escudo-logo-escudo-…` o `animacion-solo-logo-…`. El video se exporta **sin audio**.
+**Exportación.** Los cuadros se entregan con ritmo exacto (sin acumular desfase) y el bitrate se ajusta a la resolución. El archivo se nombra según la secuencia: `animacion-intro-…`, `animacion-outro-…`, `animacion-intro-outro-…`, `animacion-escudo-logo-escudo-…` o `animacion-solo-logo-…`. El video se exporta **sin audio** por defecto; sale **con audio** cuando activas el módulo *Efectos sonoros*.
 
 > 🔗 El logo de la animación se sincroniza con *Crear Logotipo* (incluido el color del bloque institucional): cualquier cambio allí se refleja al volver a esta herramienta. El color propio del bloque institucional dentro de *Crear Animación* tiene prioridad sobre el de *Crear Logotipo* solo en el video.
+
+---
+
+### 🔊 Efectos sonoros y música de fondo
+
+Módulo nuevo del panel de *Crear Animación* (plegado por defecto). **El sonido viene apagado**: hasta que marques **Activar sonido**, la vista previa y el video exportado salen sin audio. El sonido **se genera en el navegador** (Web Audio): no hay archivos de audio externos, funciona sin internet y suena igual en la vista previa que en el video exportado.
+
+```
+ Tiempo ──►  0 s ─────────────────────────────────────────── fin
+ Música      ░░▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒░░   (entra y sale gradual)
+ Efectos     ▲tri ▲volcán ▲emblema ▲▲▲▲ estrellas ▲destello ▲retroceso ▲logo ▲cierre
+```
+
+**Ajuste preestablecido y restablecer** (arriba del módulo)
+
+Un selector con **8 preestablecidos**. Cada uno trae **un sonido por cada trazo y por cada cosa que aparece o desaparece** (3 trazos del triángulo —cada uno más agudo—, volcán y sol, emblema, estrellas, orbes de luz, destello, retroceso del escudo, línea divisoria, textos, logo y cierre) y una música de fondo sugerida. Todo el módulo viene apagado; al activar el sonido suenan los efectos y la música queda apagada hasta que marques **Música de fondo**.
+
+| Preestablecido | Música sugerida (apagada) | Carácter |
+|---|---|---|
+| **Cadena Nacional (dinámico)** | Ambiental oscuro | Barridos en los trazos, 14 pops de estrellas, impacto, campanilla y destellos |
+| **Formal · institucional (sobrio)** | Orquestal solemne | Timbales, cuerdas, metales, acorde mayor de llegada y campana grave; sin pops ni destellos |
+| **Épico cinematográfico** | Épico (drone) | Metales, timbal de poder, golpe épico y acorde de gloria |
+| **Luminoso · esperanza** | Luminoso (pad brillante) | Campanillas, estrellas cristalinas y destellos |
+| **Moderno · tecnológico** | Pulso rítmico (latido) | Clics, barridos digitales y pops agudos |
+| **Noticiero · impactante** | Solemne | Timbales fuertes, metales y cortes rápidos |
+| **Minimalista · suave** | Ambiental oscuro (bajo) | Sonidos muy discretos y breves |
+| **Atmosférico · aire y calma** | Viento y aire | Barridos de aire, brillo etéreo y campana lejana |
+
+Para usar la música, con el sonido activado, basta marcar **Música de fondo** (también disponible sin la edición completa). Elegir uno reemplaza la música y los efectos actuales. **Restablecer ajustes** vuelve a los valores del preestablecido elegido (también descarta los audios propios cargados).
+
+**Edición completa sonora** (interruptor al final del módulo). Apagado, el módulo muestra solo el preestablecido, el volumen general y un resumen de lo que incluye. Encendido, aparecen la música de fondo y la lista de efectos para editar cada uno.
+
+**Sonido general · música de fondo**
+
+| Opción | Detalle |
+|---|---|
+| Fuente | **Ambiental oscuro** (inspirado en el video de referencia), **Solemne**, **Orquestal solemne** (cuerdas), **Épico** (drone), **Luminoso** (pad brillante), **Pulso rítmico** (latido grave), **Viento y aire** o **Mi música** (mp3, wav, ogg… se repite y se recorta a la duración del video) |
+| Volumen, entrada y salida gradual | Deslizadores; por defecto entra en 0.4 s y se apaga en 1.2 s |
+| Volumen general | Controla todo el sonido; lleva un limitador suave para que las capas no saturen |
+
+**Efectos por momento** (tabla del preestablecido *Cadena Nacional*)
+
+| Efecto | Momento | Sonido inicial |
+|---|---|---|
+| Trazo del triángulo | Inicia el trazo | Barrido suave |
+| Pincelada del volcán | Pincelada del volcán y el sol | Whoosh |
+| Florece el emblema | Florece el emblema | Crescendo (pad) |
+| Estrellas (una por una) | Aparecen las estrellas | Pop ×14, subiendo de tono |
+| Impacto al completar | Destello al completar el escudo | Impacto grave |
+| Campanilla del destello | Destello al completar el escudo | Campanilla |
+| Retroceso con luz | Retroceso con luz | Whoosh grave |
+| Brillo del logo | Se arma el logo | Destellos brillantes |
+| Cierre del logo | Acercamiento final | Campanilla grave |
+
+Cada efecto se puede **editar**: activar/desactivar, renombrar, cambiar el **sonido** (Whoosh, Barrido, Crescendo, Campanilla, Destellos, Impacto, Pop, Brillo agudo, Timbal, Cuerdas, Metales, Acorde final, Campana grave, Clic seco o **tu propio archivo de audio**), el **momento** de la animación, el **volumen**, el **tono** y el **desfase** (±1 s). El botón **▶** prueba el efecto solo; **✕** lo quita; **+ Agregar efecto** crea uno nuevo crea uno nuevo.
+
+- Los momentos siguen la **duración**, la **velocidad** y el tipo de video: en *Outro* se reparten en orden inverso y en *Intro + Outro* suenan en la intro y se repiten espejados en el outro.
+- Cuando un elemento **desaparece** (outro o segunda mitad de *Intro + Outro*), su sonido suena un poco más grave que al aparecer.
+- Con otros estilos de animación (Clásico, Escudo → logo → escudo, Solo el logo) cada momento se ubica en el instante equivalente de esa secuencia (por ejemplo, «el escudo retrocede» es cuando el escudo se funde con el logo).
+- El sonido empieza al pulsar ▶ en la línea de tiempo (los navegadores exigen una acción del usuario) y se sincroniza al pausar, mover la línea o cambiar la velocidad.
+- Los audios propios viven solo en la sesión (no se guardan); vuelve a cargarlos si recargas la página.
+- **Exportación:** el audio se renderiza completo (estéreo, 48 kHz) y se incrusta como pista de audio. Si el navegador no puede codificar audio, avisa y exporta el video sin sonido.
 
 ---
 

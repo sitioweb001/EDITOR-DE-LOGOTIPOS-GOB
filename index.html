@@ -666,6 +666,13 @@ input[type="color"]::-webkit-color-swatch{border-radius:6px;border:none;}
 .anim-export-progress{
   height:8px;border-radius:5px;background:var(--input-border);overflow:hidden;margin-top:4px;
 }
+.sfx-row{border:1px solid var(--panel-border);border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--input-bg,transparent);}
+.sfx-row.off{opacity:.55;}
+.sfx-h{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px;}
+.sfx-h .sfx-name{flex:1;min-width:0;font-weight:600;}
+.sfx-b{display:flex;gap:4px;}
+.sfx-b .btn{padding:2px 8px;min-width:0;}
+.sfx-row select,.sfx-row input[type=file]{width:100%;}
 .anim-export-progress-fill{height:100%;background:var(--success);width:0%;transition:width .15s linear;}
 
 </style>
@@ -1645,7 +1652,7 @@ function loadAutosave() {
    ======================================================================== */
 const controlsPane = document.getElementById('controlsPane');
 const collapseState = { guide: true, inst: true, blocks: true, typo: true, sep: true, color: true, subcolor: true, size: true, presets: true, exportc: true,
-  animMode: true, animMeasures: true, animFx: true, animContent: true, animBg: true, animTiming: true, animExport: true,
+  animMode: true, animMeasures: true, animFx: true, animContent: true, animBg: true, animTiming: true, animExport: true, animSfx: true,
   cnMode: true, cnFront: true, cnPhoto: true, cnBack: true, cnImgs: true, cnColor: true, cnExp: true }; // todos contraídos al abrir por primera vez (pedido explícito)
 
 function cardWrap(key, icon, title, bodyHtml) {
@@ -7829,6 +7836,288 @@ let animRafId = null;
 let animExporting = false;
 let animAssetsDirty = true;
 
+
+/* =========================================================================
+   EFECTOS SONOROS Y MÚSICA DE FONDO (Web Audio, sin archivos externos)
+   Todo se sintetiza en el navegador; el mismo código suena en la vista
+   previa (AudioContext) y se renderiza al exportar (OfflineAudioContext).
+   ========================================================================= */
+ICONS.speaker = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+const ANIM_CUES = { tri: 'Primer trazo del triángulo', tri2: 'Segundo trazo del triángulo', tri3: 'Tercer trazo del triángulo', brush: 'Aparece el volcán y el sol (pincelada)', emblem: 'Florece el emblema (banderas y laureles)', stars: 'Aparecen las estrellas', orbs: 'Aparecen las orbes de luz', flash: 'Destello al completar el escudo', back: 'El escudo retrocede y se transforma', logo: 'Se arma el logo', divider: 'Crece la línea divisoria', texts: 'Aparecen los textos', final: 'Acercamiento final / logo estable', end: 'Cierre (desaparece todo)' };
+const ANIM_CUE_CN = { tri: 0, tri2: 0.05, tri3: 0.10, brush: 0.12, emblem: 0.26, stars: 0.46, orbs: 0.58, flash: 0.62, back: 0.70, logo: 0.74, divider: 0.76, texts: 0.82, final: 0.90, end: 1 };   // progreso del estilo Cadena Nacional
+const ANIM_CUE_SEQ = {   // otros estilos: fracción de la duración en que ocurre algo equivalente
+  crestLogoCrest: { tri: 0, tri2: 0.03, tri3: 0.06, brush: 0.08, emblem: 0.10, stars: 0.12, orbs: 0.14, flash: 0.22, back: 0.28, logo: 0.30, divider: 0.34, texts: 0.38, final: 0.62, end: 0.90 },
+  logoOnly:       { tri: 0, tri2: 0.02, tri3: 0.04, brush: 0.06, emblem: 0.08, stars: 0.10, orbs: 0.12, flash: 0.14, back: 0.16, logo: 0.18, divider: 0.10, texts: 0.16, final: 0.80, end: 0.95 },
+  autoIn:         { tri: 0, tri2: 0.05, tri3: 0.10, brush: 0.14, emblem: 0.18, stars: 0.22, orbs: 0.26, flash: 0.30, back: 0.38, logo: 0.40, divider: 0.42, texts: 0.48, final: 0.85, end: 0.97 },
+  autoOut:        { tri: 0, tri2: 0.02, tri3: 0.04, brush: 0.05, emblem: 0.06, stars: 0.07, orbs: 0.08, flash: 0.10, back: 0.45, logo: 0.10, divider: 0.03, texts: 0.08, final: 0.62, end: 0.90 },
+};
+const animSfxFiles = {};        // audios propios (en memoria): por id de efecto y 'bg'
+let animAC = null, animSess = null;
+const animNoiseBufs = new WeakMap();
+
+const ANIM_SFX_PRESETS = { cadena: 'Cadena Nacional (dinámico)', formal: 'Formal · institucional (sobrio)', epic: 'Épico cinematográfico', luminoso: 'Luminoso · esperanza', moderno: 'Moderno · tecnológico', noticiero: 'Noticiero · impactante', minimal: 'Minimalista · suave', atmos: 'Atmosférico · aire y calma' };
+const ANIM_ST = { rep: 14, gapP: 0.0105, step: 0.5 };   // 14 estrellas, cada una medio tono más alta
+/* m = volumen general · bg = [música sugerida, volumen, entrada, salida] · ev = un sonido [sonido, volumen, tono] (o null) por cada elemento, en este orden:
+   trazos del triángulo (×3, cada uno más agudo), volcán, emblema, estrellas, orbes, destello, peso del destello, retroceso, línea divisoria, textos, logo, cierre */
+const ANIM_SFX_DATA = {
+  cadena:    { m: 0.9,  bg: ['ambient', 0.45, 0.4, 1.2], ev: [['sweep', 0.4, 1], ['whoosh', 0.5, 1], ['swell', 0.5, 1], ['pop', 0.5, 1], ['shimmer', 0.3, 1], ['impact', 0.7, 1], ['chime', 0.5, 1], ['whoosh', 0.45, 0.7], ['sweep', 0.45, 1.4], ['sparkle', 0.35, 1], ['chime', 0.35, 1.2], ['chime', 0.35, 0.5]] },
+  formal:    { m: 0.85, bg: ['orch', 0.4, 1.2, 2],        ev: [['timpani', 0.35, 1], ['strings', 0.35, 1.1], ['strings', 0.5, 1], ['bell', 0.15, 2], ['strings', 0.3, 1.3], ['timpani', 0.7, 0.8], ['brass', 0.5, 1], ['strings', 0.4, 0.8], ['strings', 0.3, 1.2], ['bell', 0.2, 1.5], ['resolve', 0.5, 1], ['bell', 0.3, 1]] },
+  epic:      { m: 0.9,  bg: ['epic', 0.5, 0.8, 2],        ev: [['swell', 0.35, 0.9], ['whoosh', 0.5, 0.8], ['brass', 0.5, 0.8], ['chime', 0.2, 1.5], ['shimmer', 0.3, 0.8], ['impact', 0.9, 0.9], ['brass', 0.55, 1], ['whoosh', 0.5, 0.6], ['timpani', 0.5, 0.9], ['brass', 0.35, 1.2], ['resolve', 0.6, 1], ['bell', 0.35, 0.8]] },
+  luminoso:  { m: 0.85, bg: ['bright', 0.4, 0.6, 1.5],    ev: [['chime', 0.25, 1.5], ['sparkle', 0.3, 1], ['swell', 0.35, 1.5], ['chime', 0.22, 1.2], ['shimmer', 0.3, 1.2], ['sparkle', 0.5, 1], ['chime', 0.45, 1], ['shimmer', 0.35, 1], ['chime', 0.3, 1.8], ['sparkle', 0.35, 1.2], ['chime', 0.4, 1.3], ['chime', 0.35, 1]] },
+  moderno:   { m: 0.85, bg: ['pulse', 0.4, 0.3, 1],       ev: [['click', 0.5, 1], ['whoosh', 0.45, 1.4], ['sweep', 0.5, 1.3], ['pop', 0.45, 1.2], ['shimmer', 0.25, 1.3], ['impact', 0.6, 1.4], ['click', 0.5, 0.8], ['whoosh', 0.4, 1.2], ['sweep', 0.45, 1.6], ['pop', 0.4, 1.4], ['sparkle', 0.4, 1.3], ['click', 0.5, 0.7]] },
+  noticiero: { m: 0.9,  bg: ['solemn', 0.35, 0.3, 1.2],   ev: [['timpani', 0.5, 1.1], ['whoosh', 0.4, 1.2], ['brass', 0.45, 1], ['pop', 0.3, 1.3], ['whoosh', 0.3, 1.3], ['timpani', 0.8, 0.9], ['brass', 0.6, 1.1], ['whoosh', 0.4, 1], ['timpani', 0.4, 1.2], ['click', 0.4, 1], ['resolve', 0.55, 1.1], ['timpani', 0.5, 1]] },
+  minimal:   { m: 0.8,  bg: ['ambient', 0.3, 1, 1.8],     ev: [['click', 0.2, 1.3], ['sweep', 0.2, 1], ['swell', 0.25, 0.8], ['chime', 0.1, 1.4], null, null, ['chime', 0.25, 1], ['sweep', 0.2, 0.8], ['click', 0.2, 1], ['chime', 0.2, 1.5], ['chime', 0.3, 1], ['chime', 0.25, 0.5]] },
+  atmos:     { m: 0.85, bg: ['wind', 0.5, 1.2, 2],        ev: [['sweep', 0.3, 0.8], ['whoosh', 0.35, 0.7], ['swell', 0.4, 0.7], ['chime', 0.12, 1.4], ['shimmer', 0.3, 1], ['shimmer', 0.35, 0.9], ['chime', 0.3, 0.8], ['whoosh', 0.3, 0.5], ['sweep', 0.3, 1], ['shimmer', 0.25, 1.2], ['chime', 0.3, 0.8], ['bell', 0.25, 1.2]] },
+};
+function animSfxPresetData(key) {
+  const D = ANIM_SFX_DATA[key] || ANIM_SFX_DATA.cadena, slots = ['tri', 'brush', 'emblem', 'stars', 'orbs', 'flash', 'flash2', 'back', 'divider', 'texts', 'logo', 'final'], evs = [];
+  const add = (id, cue, name, a, pm, extra) => { if (a) evs.push(Object.assign({ id, name, on: true, snd: a[0], cue, vol: a[1], pitch: a[2] * (pm || 1), off: 0, rep: 1, gapP: 0, step: 0 }, extra || {})); };
+  D.ev.forEach((a, i) => {
+    const n = slots[i];
+    if (n === 'tri') { add('tri', 'tri', ANIM_CUES.tri, a); add('tri2', 'tri2', ANIM_CUES.tri2, a, 1.12); add('tri3', 'tri3', ANIM_CUES.tri3, a, 1.26); }   // cada trazo, un poco más agudo
+    else if (n === 'flash2') add(n, 'flash', 'Peso del escudo completo', a);
+    else add(n, n, ANIM_CUES[n], a, 1, n === 'stars' ? ANIM_ST : null);
+  });
+  return { master: D.m, bg: { on: false, src: D.bg[0], vol: D.bg[1], fadeIn: D.bg[2], fadeOut: D.bg[3], fileName: '' }, events: evs };   // la música de fondo queda apagada por defecto
+}
+function animSfxApply(key) {   // aplica un preestablecido (también sirve para restablecer ajustes)
+  const S = anim.sfx, d = animSfxPresetData(key);
+  Object.keys(animSfxFiles).forEach(k => delete animSfxFiles[k]);
+  S.preset = key; S.master = d.master; S.bg = d.bg; S.events = d.events;
+}
+/* el sonido viene apagado: la animación y el video salen sin audio hasta que lo actives */
+anim.sfx = { on: false, preset: 'cadena', full: false }; animSfxApply('cadena');
+
+function animMasterChain(c, dest) {   // volumen general + limitador suave (evita saturar al sumar capas)
+  const m = c.createGain(), lim = c.createDynamicsCompressor(); m.gain.value = anim.sfx.master;
+  lim.threshold.value = -8; lim.knee.value = 8; lim.ratio.value = 10; lim.attack.value = 0.003; lim.release.value = 0.2;
+  m.connect(lim); lim.connect(dest); return m;
+}
+function animAcGet() { if (!animAC) animAC = new (window.AudioContext || window.webkitAudioContext)(); if (animAC.state === 'suspended') animAC.resume(); return animAC; }
+function animNoiseSrc(c) {
+  let b = animNoiseBufs.get(c);
+  if (!b) { b = c.createBuffer(1, c.sampleRate * 2, c.sampleRate); const d = b.getChannelData(0); let z = 12345; for (let i = 0; i < d.length; i++) { z = (z * 1664525 + 1013904223) >>> 0; d[i] = (z / 4294967296) * 2 - 1; } animNoiseBufs.set(c, b); }
+  const n = c.createBufferSource(); n.buffer = b; n.loop = true; return n;
+}
+function animEnv(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+function animTone(c, o, t, type, f0, f1, a, d, v) {   // oscilador con envolvente y glissando
+  const os = c.createOscillator(), g = c.createGain(); os.type = type; os.frequency.setValueAtTime(f0, t);
+  if (f1 !== f0) os.frequency.exponentialRampToValueAtTime(f1, t + a + d);
+  animEnv(g, t, a, v, d); os.connect(g); g.connect(o); os.start(t); os.stop(t + a + d + 0.05);
+}
+function animNoiseBand(c, o, t, type, f0, f1, q, a, d, v) {   // ruido filtrado con barrido de frecuencia
+  const n = animNoiseSrc(c), b = c.createBiquadFilter(), g = c.createGain(); b.type = type; b.Q.value = q;
+  b.frequency.setValueAtTime(f0, t); b.frequency.exponentialRampToValueAtTime(f1, t + a + d);
+  animEnv(g, t, a, v, d); n.connect(b); b.connect(g); g.connect(o); n.start(t); n.stop(t + a + d + 0.05);
+}
+function animChord(c, o, t, freqs, type, a, d, v, lp0, lp1) {   // acorde con osciladores levemente desafinados y filtro que se abre (cuerdas / metales)
+  const lp = c.createBiquadFilter(), g = c.createGain(); lp.type = 'lowpass'; lp.Q.value = 0.6;
+  lp.frequency.setValueAtTime(lp0, t); lp.frequency.exponentialRampToValueAtTime(lp1, t + a + d * 0.5);
+  animEnv(g, t, a, v, d); lp.connect(g); g.connect(o);
+  freqs.forEach(f => [-6, 6].forEach(dt => { const os = c.createOscillator(); os.type = type; os.frequency.value = f; os.detune.value = dt; os.connect(lp); os.start(t); os.stop(t + a + d + 0.05); }));
+}
+const ANIM_SND = {
+  whoosh:  { label: 'Whoosh (aire que pasa)',   f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'bandpass', 300 * p, 3600 * p, 1.2, 0.35, 0.65, v * 0.9) },
+  sweep:   { label: 'Barrido suave',            f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'lowpass', 400 * p, 2600 * p, 0.8, 0.12, 0.5, v * 0.7) },
+  swell:   { label: 'Crescendo (pad)',          f: (c, o, t, v, p) => { [110, 110.8, 165].forEach(f => animTone(c, o, t, 'sawtooth', f * p, f * p, 0.9, 1.1, v * 0.16)); } },
+  chime:   { label: 'Campanilla',               f: (c, o, t, v, p) => { [[1, 1], [2.76, 0.4], [5.4, 0.15]].forEach(([m, a]) => animTone(c, o, t, 'sine', 523.25 * m * p, 523.25 * m * p, 0.005, 1.7 / m ** 0.5, v * a * 0.6)); } },
+  sparkle: { label: 'Destellos brillantes',     f: (c, o, t, v, p) => { for (let i = 0; i < 12; i++) animTone(c, o, t + i * 0.065, 'sine', (2000 + ((i * 7919) % 97) * 45) * p, (2000 + ((i * 7919) % 97) * 45) * p, 0.002, 0.14, v * 0.2); } },
+  impact:  { label: 'Impacto grave',            f: (c, o, t, v, p) => { animTone(c, o, t, 'sine', 120 * p, 38 * p, 0.005, 1.1, v * 0.9); animNoiseBand(c, o, t, 'lowpass', 500, 120, 0.7, 0.003, 0.4, v * 0.5); } },
+  pop:     { label: 'Pop (burbuja)',            f: (c, o, t, v, p) => animTone(c, o, t, 'sine', 620 * p, 900 * p, 0.003, 0.14, v * 0.45) },
+  shimmer: { label: 'Brillo agudo',             f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'bandpass', 5000 * p, 9000 * p, 3, 0.8, 0.9, v * 0.35) },
+  timpani: { label: 'Timbal (percusión grave)', f: (c, o, t, v, p) => { animTone(c, o, t, 'sine', 98 * p, 62 * p, 0.004, 0.95, v * 0.9); animTone(c, o, t, 'sine', 147 * p, 93 * p, 0.004, 0.5, v * 0.25); animNoiseBand(c, o, t, 'lowpass', 700, 160, 0.7, 0.002, 0.12, v * 0.3); } },
+  strings: { label: 'Cuerdas (crescendo solemne)', f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 220 * p, 293.66 * p, 440 * p], 'sawtooth', 1.0, 1.7, v * 0.07, 700, 1500) },
+  brass:   { label: 'Metales (acorde mayor)',   f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 220 * p, 293.66 * p, 369.99 * p], 'sawtooth', 0.3, 1.5, v * 0.07, 450, 2300) },
+  resolve: { label: 'Acorde final (llegada)',   f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 293.66 * p, 369.99 * p, 440 * p, 587.33 * p], 'sawtooth', 0.06, 2.4, v * 0.06, 1900, 800) },
+  bell:    { label: 'Campana grave',            f: (c, o, t, v, p) => { [[1, 1], [2, 0.5], [2.4, 0.3], [3, 0.2], [4.2, 0.1]].forEach(([m, a], i) => animTone(c, o, t, 'sine', 196 * m * p, 196 * m * p, 0.004, 3 / (1 + i * 0.5), v * a * 0.5)); } },
+  click:   { label: 'Clic seco',                f: (c, o, t, v, p) => animTone(c, o, t, 'square', 1800 * p, 1800 * p, 0.001, 0.03, v * 0.3) },
+};
+const ANIM_PADS = {
+  epic:    { label: 'Épico cinematográfico (drone)', n: [55, 110, 164.81, 220, 329.63], a: [0.14, 0.1, 0.07, 0.05, 0.03], lp: 1300, sh: 0.05, wave: 'sawtooth' },
+  bright:  { label: 'Luminoso (pad brillante)',      n: [130.81, 196, 261.63, 329.63, 392, 523.25], a: [0.3, 0.22, 0.18, 0.14, 0.1, 0.07], lp: 3000, sh: 0.08, wave: 'triangle' },
+  pulse:   { label: 'Pulso rítmico (latido grave)',  n: [55, 110, 165], a: [0.3, 0.2, 0.1], lp: 700, sh: 0.03, beat: 0.75 },
+  wind:    { label: 'Viento y aire (atmósfera)',     n: [98, 147], a: [0.1, 0.06], lp: 600, sh: 0.04, noise: { f: 700, q: 0.7, a: 0.35, lfo: 0.15 } },
+  orch:    { label: 'Orquestal solemne (cuerdas)', n: [73.42, 110, 146.83, 220, 293.66, 369.99], a: [0.13, 0.1, 0.08, 0.06, 0.04, 0.025], lp: 1000, sh: 0, wave: 'sawtooth' },   // colchón de fondo: notas graves y suaves, como el video de referencia
+  ambient: { label: 'Ambiental oscuro (como el video)', n: [64.6, 123.8, 247.6, 312.2, 333.8, 624.5], a: [0.35, 0.22, 0.18, 0.12, 0.12, 0.06], lp: 1400, sh: 0.05 },
+  solemn:  { label: 'Solemne (acorde abierto)',          n: [73.4, 146.8, 220, 293.7, 370, 440],       a: [0.35, 0.25, 0.2, 0.15, 0.1, 0.08],  lp: 1900, sh: 0.06 },
+};
+function animSfxFire(c, o, t, ev, pitch) {
+  if (ev.snd === 'file') {
+    const f = animSfxFiles[ev.id]; if (!f) return;
+    const s = c.createBufferSource(), g = c.createGain(); s.buffer = f.buf; s.playbackRate.value = pitch; g.gain.value = ev.vol; s.connect(g); g.connect(o); s.start(t); return;
+  }
+  const d = ANIM_SND[ev.snd]; if (d) d.f(c, o, t, ev.vol, pitch);
+}
+/* Momentos (segundos reales) en que suena cada cue según el estilo, el tipo de video, la duración y la velocidad.
+   Devuelve { t, out }: out = true cuando el elemento está desapareciendo (outro), y suena un poco más grave. */
+function animCueTimes(cue, ex) {
+  ex = ex || 0;
+  const dur = Math.max(0.5, anim.durationSec), sp = Math.max(0.1, anim.speed || 1), seq = anim.seq || 'auto', mode = anim.mode, R = (x, out) => ({ t: x * dur / sp, out: !!out });
+  if (seq === 'cadena') {
+    const c = Object.assign({}, ANIM_CN_DEFAULT, anim.cn || {}), pc = clamp((ANIM_CUE_CN[cue] || 0) + ex, 0, 1);
+    const rp = c.videoPace !== false ? (pc < 0.7 ? pc / 0.7 * 0.3 : pc < 0.9 ? 0.3 + (pc - 0.7) / 0.2 * 0.2 : 0.5 + (pc - 0.9) / 0.1 * 0.5) : pc;
+    return mode === 'outro' ? [R(1 - rp, 1)] : mode === 'both' ? [R(rp / 2, 0), R(1 - rp / 2, 1)] : [R(rp, 0)];
+  }
+  if (seq === 'crestLogoCrest' || seq === 'logoOnly') return [R(clamp(ANIM_CUE_SEQ[seq][cue] + ex * 0.3, 0, 1), 0)];
+  const xi = clamp(ANIM_CUE_SEQ.autoIn[cue] + ex * 0.3, 0, 1), xo = clamp(ANIM_CUE_SEQ.autoOut[cue] + ex * 0.3, 0, 1);   // clásico
+  if (mode === 'intro') return [R(xi, 0)];
+  if (mode === 'outro') return [R(xo, 0)];
+  const dv = anim.fxIn === 'divider' && animAssets.split, A = dv ? 0.5 : 0.7, B = dv ? 0.5 : 0.2, iS = Math.max(0.3, anim.introSec), hS = Math.max(0, anim.holdSec), oS = Math.max(0.3, anim.outroSec), res = [];
+  if (xi <= A) res.push({ t: xi / A * iS / sp, out: false });
+  if (xo >= B) res.push({ t: (iS + hS + (xo - B) / (1 - B) * oS) / sp, out: true });
+  return res;
+}
+function animSfxPlan() {
+  const out = [];
+  anim.sfx.events.forEach(ev => {
+    if (!ev.on) return;
+    for (let i = 0; i < Math.max(1, ev.rep | 0); i++) animCueTimes(ev.cue, i * (ev.gapP || 0)).forEach(o => out.push({ t: clamp(o.t + (ev.off || 0), 0, Math.max(0, animRealDur() - 0.3)), ev, pitch: ev.pitch * Math.pow(2, i * (ev.step || 0) / 12) * (o.out ? 0.8 : 1) }));
+  });
+  return out;
+}
+function animBgPlay(c, o, t, dur, fromT) {
+  const bg = anim.sfx.bg; if (!bg.on || dur <= 0.05) return;
+  const g = c.createGain(), fi = Math.max(0.05, fromT > 0 ? 0.05 : bg.fadeIn), fo = Math.min(bg.fadeOut, dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(bg.vol, t + fi); g.gain.setValueAtTime(bg.vol, t + Math.max(fi, dur - fo)); g.gain.linearRampToValueAtTime(0.0001, t + dur); g.connect(o);
+  if (bg.src === 'file') {
+    const f = animSfxFiles.bg; if (!f) return;
+    const s = c.createBufferSource(); s.buffer = f.buf; s.loop = true; s.connect(g); s.start(t, (fromT || 0) % f.buf.duration); s.stop(t + dur); return;
+  }
+  const P = ANIM_PADS[bg.src] || ANIM_PADS.ambient, lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = P.lp; lp.connect(g);
+  P.n.forEach((f, i) => {
+    const os = c.createOscillator(), og = c.createGain(), l = c.createOscillator(), lg = c.createGain();
+    os.type = P.wave || (i > 3 ? 'triangle' : 'sine'); os.frequency.value = f; if (P.wave) os.detune.value = i % 2 ? 5 : -5; og.gain.value = P.a[i];
+    l.frequency.value = 0.12 + i * 0.05; lg.gain.value = P.a[i] * 0.35; l.connect(lg); lg.connect(og.gain);   // respiración lenta
+    os.connect(og); og.connect(lp); os.start(t); os.stop(t + dur); l.start(t); l.stop(t + dur);
+  });
+  if (P.beat) for (let b = 0; b * P.beat < dur - 0.2; b++) animTone(c, g, t + b * P.beat, 'sine', 85, 48, 0.005, 0.35, 0.5);   // latido grave
+  if (P.noise) {   // lecho de aire: ruido filtrado que respira lentamente
+    const n = animNoiseSrc(c), bp = c.createBiquadFilter(), ng = c.createGain(), l = c.createOscillator(), lg = c.createGain();
+    bp.type = 'bandpass'; bp.frequency.value = P.noise.f; bp.Q.value = P.noise.q; ng.gain.value = P.noise.a; l.frequency.value = P.noise.lfo; lg.gain.value = P.noise.f * 0.5;
+    l.connect(lg); lg.connect(bp.frequency); n.connect(bp); bp.connect(ng); ng.connect(g); n.start(t); n.stop(t + dur); l.start(t); l.stop(t + dur);
+  }
+  if (!(P.sh > 0)) return;
+  const n = animNoiseSrc(c), bp = c.createBiquadFilter(), sg = c.createGain(); bp.type = 'bandpass'; bp.frequency.value = 7500; bp.Q.value = 1.5;   // brillo agudo hacia el final, como en el video
+  sg.gain.setValueAtTime(0.0001, t); sg.gain.linearRampToValueAtTime(0.0001, t + dur * 0.55); sg.gain.linearRampToValueAtTime(P.sh, t + dur * 0.72); sg.gain.linearRampToValueAtTime(0.0001, t + dur * 0.95);
+  n.connect(bp); bp.connect(sg); sg.connect(g); n.start(t); n.stop(t + dur);
+}
+function animSfxRun(c, o, at, fromT) {
+  animSfxPlan().forEach(it => { if (it.t >= fromT - 0.02) animSfxFire(c, o, at + Math.max(0, it.t - fromT), it.ev, it.pitch); });
+  animBgPlay(c, o, at, animRealDur() - fromT, fromT);
+}
+function animAudioStart(fromT) {
+  animAudioStop();
+  if (!anim.sfx.on) return;
+  try { const c = animAcGet(), m = animMasterChain(c, c.destination); animSess = { m, c }; animSfxRun(c, m, c.currentTime + 0.05, fromT || 0); } catch (e) { console.warn('Audio no disponible', e); }
+}
+function animAudioStop() {
+  if (!animSess) return; const { m, c } = animSess; animSess = null;
+  try { m.gain.cancelScheduledValues(c.currentTime); m.gain.setTargetAtTime(0, c.currentTime, 0.015); setTimeout(() => { try { m.disconnect(); } catch (e) {} }, 150); } catch (e) {}
+}
+async function animSfxRender() {   // audio completo del video (estéreo, 48 kHz)
+  if (!anim.sfx.on || typeof OfflineAudioContext === 'undefined') return null;
+  if (!anim.sfx.bg.on && !animSfxPlan().length) return null;
+  const sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(sr * animRealDur()), sr), m = animMasterChain(oc, oc.destination);
+  animSfxRun(oc, m, 0, 0);
+  return await oc.startRendering();
+}
+async function animAudioEncode(buf, cfg, muxer) {
+  let err = null; const enc = new AudioEncoder({ output: (ch, meta) => muxer.addAudioChunk(ch, meta), error: (e) => { err = e; } }); enc.configure(cfg);
+  const n = buf.length, c0 = buf.getChannelData(0), c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0, step = 4800;
+  for (let i = 0; i < n; i += step) {
+    const len = Math.min(step, n - i), data = new Float32Array(len * 2); data.set(c0.subarray(i, i + len), 0); data.set(c1.subarray(i, i + len), len);
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: buf.sampleRate, numberOfFrames: len, numberOfChannels: 2, timestamp: Math.round(i / buf.sampleRate * 1e6), data });
+    enc.encode(ad); ad.close();
+  }
+  await enc.flush(); enc.close(); if (err) throw err;
+}
+async function animSfxDecode(file) { return await new OfflineAudioContext(2, 1, 48000).decodeAudioData(await file.arrayBuffer()); }
+function animEsc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function animCardSfx() {
+  const S = anim.sfx, bg = S.bg, fm = { pct: v => Math.round(v * 100) + '%', x: v => Number(v).toFixed(2) + '×', s: v => Number(v).toFixed(1) + ' s' };
+  const opt = (arr, cur) => arr.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
+  const rng = (lbl, attr, min, max, step, val, u) => `<div class="field" style="margin:6px 0 0;"><label class="flabel">${lbl} <span class="val">${fm[u](val)}</span></label><input type="range" min="${min}" max="${max}" step="${step}" value="${val}" ${attr} data-u="${u}"></div>`;
+  const snd = Object.keys(ANIM_SND).map(k => [k, ANIM_SND[k].label]).concat([['file', '🎵 Mi archivo de audio…']]);
+  const cues = Object.keys(ANIM_CUES).map(k => [k, ANIM_CUES[k]]);
+  const bgSrc = Object.keys(ANIM_PADS).map(k => [k, ANIM_PADS[k].label]).concat([['file', '🎵 Mi música (archivo)…']]);
+  const rows = S.events.map(e => `<div class="sfx-row ${e.on ? '' : 'off'}">
+    <div class="sfx-h"><input type="checkbox" ${e.on ? 'checked' : ''} data-sfx-on="${e.id}" title="Activar / desactivar"><input type="text" class="sfx-name" value="${animEsc(e.name)}" data-sfx-f="name" data-sfx-id="${e.id}">
+      <span class="sfx-b"><button type="button" class="btn ghost" data-sfx-test="${e.id}" title="Probar este efecto">▶</button><button type="button" class="btn ghost" data-sfx-del="${e.id}" title="Quitar efecto">✕</button></span></div>
+    <label class="flabel">Sonido</label><select data-sfx-f="snd" data-sfx-id="${e.id}">${opt(snd, e.snd)}</select>
+    ${e.snd === 'file' ? `<input type="file" accept="audio/*" data-sfx-file="${e.id}" style="margin-top:6px;"><p class="hint">${animSfxFiles[e.id] ? 'Cargado: <b>' + animEsc(animSfxFiles[e.id].name) + '</b>' : 'Elige un archivo de audio (mp3, wav, ogg…).'}</p>` : ''}
+    <label class="flabel" style="margin-top:6px;">Momento de la animación</label><select data-sfx-f="cue" data-sfx-id="${e.id}">${opt(cues, e.cue)}</select>
+    ${rng('Volumen', `data-sfx-f="vol" data-sfx-id="${e.id}"`, 0, 1, 0.05, e.vol, 'pct')}
+    ${rng('Tono', `data-sfx-f="pitch" data-sfx-id="${e.id}"`, 0.5, 2, 0.05, e.pitch, 'x')}
+    ${rng('Desfase', `data-sfx-f="off" data-sfx-id="${e.id}"`, -1, 1, 0.1, e.off, 's')}
+    ${e.rep > 1 ? `<p class="hint" style="margin:4px 0 0;">Se repite <b>${e.rep}</b> veces, subiendo de tono.</p>` : ''}
+  </div>`).join('');
+  return cardWrap('animSfx', ICONS.speaker, 'Efectos sonoros', `
+    <div class="field"><label class="flabel">Ajuste preestablecido</label>
+      <select data-sfx-preset>${opt(Object.keys(ANIM_SFX_PRESETS).map(k => [k, ANIM_SFX_PRESETS[k]]), S.preset)}</select>
+      <button class="btn ghost" type="button" data-sfx-resetall style="width:100%;justify-content:center;margin-top:6px;">Restablecer ajustes</button>
+      <p class="hint">Elegir un preestablecido reemplaza la música y los efectos actuales (8 opciones). <b>Restablecer ajustes</b> vuelve a los valores del preestablecido elegido.</p></div>
+    <label class="check-row"><input type="checkbox" ${S.on ? 'checked' : ''} data-sfx-g="on"> <b>Activar sonido</b></label>
+    <p class="hint" style="margin:2px 0 8px 24px;">${S.on ? 'Suena en la vista previa y se incluye en el video exportado.' : '<b>Apagado por defecto.</b> Actívalo para escuchar la vista previa y exportar el video con audio. Mientras esté apagado, el video sale sin sonido.'}</p>
+    ${rng('Volumen general', 'data-sfx-g="master"', 0, 1, 0.05, S.master, 'pct')}
+    ${S.full ? `
+    <div class="field"><label class="flabel">Sonido general · música de fondo</label>
+      <label class="check-row"><input type="checkbox" ${bg.on ? 'checked' : ''} data-sfx-g="bgOn"> <b>Música de fondo</b></label>
+      <select data-sfx-g="bgSrc">${opt(bgSrc, bg.src)}</select>
+      ${bg.src === 'file' ? `<input type="file" accept="audio/*" data-sfx-bgfile style="margin-top:6px;width:100%;"><p class="hint">${animSfxFiles.bg ? 'Cargada: <b>' + animEsc(animSfxFiles.bg.name) + '</b> (se repite y se recorta a la duración del video)' : 'Elige tu música (mp3, wav, ogg…).'}</p>` : ''}
+      ${rng('Volumen de la música', 'data-sfx-g="bgVol"', 0, 1, 0.05, bg.vol, 'pct')}
+      ${rng('Entrada gradual', 'data-sfx-g="bgIn"', 0, 3, 0.1, bg.fadeIn, 's')}
+      ${rng('Salida gradual', 'data-sfx-g="bgOut"', 0, 4, 0.1, bg.fadeOut, 's')}
+    </div>
+    <div class="field"><label class="flabel">Efectos por momento</label>
+      <p class="hint" style="margin:0;">Vienen según el preestablecido elegido; edita sonido, momento, volumen, tono y desfase, o desactívalos. ▶ prueba cada uno.</p>
+      ${rows}
+      <button class="btn" type="button" data-sfx-add style="width:100%;justify-content:center;">+ Agregar efecto</button>
+    </div>
+    <p class="hint">Con otros estilos de animación los momentos se reparten por porcentaje de la duración.</p>`
+    : `<label class="check-row"><input type="checkbox" ${bg.on ? 'checked' : ''} data-sfx-g="bgOn"> <b>Música de fondo</b> <span class="hint" style="margin:0;">(${((ANIM_PADS[bg.src] || {}).label || 'Mi música')})</span></label>
+    <p class="hint" style="margin:2px 0 6px 24px;">Apagada por defecto; al activarla suena junto con los efectos.</p>
+    <p class="hint">Hay <b>${S.events.filter(e => e.on).length} sonidos</b>, uno por cada trazo y por cada cosa que aparece o desaparece: ${S.events.filter(e => e.on).map(e => animEsc(e.name)).join(' · ') || 'ninguno'}.</p>`}
+    <label class="check-row" style="margin-top:10px;"><input type="checkbox" ${S.full ? 'checked' : ''} data-sfx-g="full"> <b>Edición completa sonora</b></label>
+    <p class="hint" style="margin:2px 0 0 24px;">Muestra la música de fondo y cada efecto para editarlos uno por uno.</p>
+  `);
+}
+function animBindSfx(r) {
+  const S = anim.sfx, rs = () => { if (animPlaying) animAudioStart(animCurTime); }, re = () => { renderAnimControls(); rs(); };
+  const fm = { pct: v => Math.round(v * 100) + '%', x: v => v.toFixed(2) + '×', s: v => v.toFixed(1) + ' s' };
+  const lbl = (el, v) => { const sp = el.closest('.field') && el.closest('.field').querySelector('.val'); if (sp && el.dataset.u) sp.textContent = fm[el.dataset.u](v); };
+  const val = el => el.type === 'checkbox' ? el.checked : el.type === 'range' ? parseFloat(el.value) : el.value;
+  const G = { on: v => S.on = v, master: v => S.master = v, bgOn: v => S.bg.on = v, bgSrc: v => S.bg.src = v, bgVol: v => S.bg.vol = v, bgIn: v => S.bg.fadeIn = v, bgOut: v => S.bg.fadeOut = v, full: v => S.full = v };
+  r.querySelectorAll('[data-sfx-g]').forEach(el => el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
+    const k = el.dataset.sfxG, v = val(el); G[k](v); lbl(el, v); if (k === 'bgSrc' || k === 'full' || k === 'bgOn') renderAnimControls(); if (!animPlaying && k === 'on' && !v) animAudioStop(); rs();
+  }));
+  r.querySelectorAll('[data-sfx-f]').forEach(el => el.addEventListener(el.type === 'range' || el.type === 'text' ? 'input' : 'change', () => {
+    const ev = S.events.find(e => e.id === el.dataset.sfxId); if (!ev) return; const k = el.dataset.sfxF, v = el.type === 'range' ? parseFloat(el.value) : el.value;
+    ev[k] = v; lbl(el, v); if (k === 'snd') renderAnimControls(); if (k !== 'name') rs();
+  }));
+  r.querySelectorAll('[data-sfx-on]').forEach(el => el.addEventListener('change', () => { const ev = S.events.find(e => e.id === el.dataset.sfxOn); if (ev) { ev.on = el.checked; re(); } }));
+  r.querySelectorAll('[data-sfx-test]').forEach(el => el.addEventListener('click', () => {
+    const ev = S.events.find(e => e.id === el.dataset.sfxTest); if (!ev) return;
+    try { const c = animAcGet(), m = animMasterChain(c, c.destination); animSfxFire(c, m, c.currentTime + 0.02, ev, ev.pitch); if (ev.snd === 'file' && !animSfxFiles[ev.id]) toast('Primero carga un archivo de audio', 'err'); } catch (e) { toast('No se pudo reproducir el audio', 'err'); }
+  }));
+  r.querySelectorAll('[data-sfx-del]').forEach(el => el.addEventListener('click', () => { S.events = S.events.filter(e => e.id !== el.dataset.sfxDel); delete animSfxFiles[el.dataset.sfxDel]; re(); }));
+  r.querySelectorAll('[data-sfx-file]').forEach(el => el.addEventListener('change', async () => {
+    const f = el.files && el.files[0]; if (!f) return;
+    try { animSfxFiles[el.dataset.sfxFile] = { buf: await animSfxDecode(f), name: f.name }; re(); toast('Sonido cargado', 'ok'); } catch (e) { toast('No se pudo leer ese archivo de audio', 'err'); }
+  }));
+  const bf = r.querySelector('[data-sfx-bgfile]');
+  if (bf) bf.addEventListener('change', async () => {
+    const f = bf.files && bf.files[0]; if (!f) return;
+    try { animSfxFiles.bg = { buf: await animSfxDecode(f), name: f.name }; re(); toast('Música cargada', 'ok'); } catch (e) { toast('No se pudo leer ese archivo de audio', 'err'); }
+  });
+  const add = r.querySelector('[data-sfx-add]');
+  if (add) add.addEventListener('click', () => { S.events.push({ id: 'e' + Date.now(), name: 'Efecto nuevo', on: true, snd: 'chime', cue: 'logo', vol: 0.6, pitch: 1, off: 0, rep: 1, gapP: 0, step: 0 }); re(); });
+  const ps = r.querySelector('[data-sfx-preset]');
+  if (ps) ps.addEventListener('change', () => { animSfxApply(ps.value); re(); toast('Preestablecido aplicado: ' + ANIM_SFX_PRESETS[ps.value], 'ok'); });
+  const ra = r.querySelector('[data-sfx-resetall]');
+  if (ra) ra.addEventListener('click', () => { animSfxApply(S.preset); re(); toast('Ajustes de sonido restablecidos', 'ok'); });
+}
+
 /* ---------- Easing ---------- */
 /* Duración real (segundos) = duración de la animación ÷ velocidad */
 function animRealDur() { return Math.max(0.3, anim.durationSec / Math.max(0.1, anim.speed || 1)); }
@@ -7842,7 +8131,7 @@ function animSetSpeed(v, rerender) {
     const h = document.getElementById('animSpeedHint'); if (h) h.innerHTML = anim.speed !== 1 ? `Dura <b>${animRealDur().toFixed(1)} s</b> en lugar de ${anim.durationSec.toFixed(1)} s.` : 'Normal (1×). Sube para acelerar, baja para ver la animación en cámara lenta.';
     animRender();
   } else { renderAnimControls(); animRender(); }
-  if (wasPlaying) { animPlayStart = performance.now() - animCurTime * 1000; }
+  if (wasPlaying) { animPlayStart = performance.now() - animCurTime * 1000; animAudioStart(animCurTime); }
 }
 function animSyncBothDuration() {
   if (anim.mode === 'both' && anim.seq === 'auto') anim.durationSec = Math.round((anim.introSec + anim.holdSec + anim.outroSec) * 10) / 10;
@@ -8521,10 +8810,12 @@ function animPlay() {
   animPlayStart = performance.now() - animCurTime * 1000;
   const btn = document.getElementById('animPlayBtn');
   if (btn) btn.innerHTML = ICONS.pause;
+  animAudioStart(animCurTime);
   animLoop();
 }
 function animPause() {
   animPlaying = false;
+  animAudioStop();
   if (animRafId) cancelAnimationFrame(animRafId);
   const btn = document.getElementById('animPlayBtn');
   if (btn) btn.innerHTML = ICONS.play;
@@ -8533,7 +8824,7 @@ function animTogglePlay() { animPlaying ? animPause() : animPlay(); }
 function animLoop() {
   if (!animPlaying) return;
   let t = (performance.now() - animPlayStart) / 1000;
-  if (t >= animRealDur()) { animPlayStart = performance.now(); t = 0; }
+  if (t >= animRealDur()) { animPlayStart = performance.now(); t = 0; animAudioStart(0); }
   animCurTime = t;
   animRender();
   animRafId = requestAnimationFrame(animLoop);
@@ -8565,6 +8856,7 @@ function renderAnimControls() {
   right.innerHTML =
     animCardMode() +
     animCardEffects() +
+    animCardSfx() +
     animCardContent() +
     animCardMeasures() +
     animCardBackground() +
@@ -8938,6 +9230,7 @@ function animCardExport() {
     ${useMp4 ? `<p class="hint"><b>MP4</b> se abre en CapCut, el editor de Samsung y casi cualquier celular. El MP4 no guarda transparencia: para quitar el fondo usa <b>Croma</b>.</p>`
       : anim.bgType==='transparent' ? `<p class="hint">Con fondo transparente solo se puede exportar <b>.webm</b> (el MP4 no admite transparencia).</p>`
       : `<p class="hint">Tu navegador no ofrece MP4 aquí, se exporta <b>.webm</b>. Para CapCut o Samsung, usa un Chrome actualizado (MP4) o convierte el .webm con cualquier conversor gratuito.</p>`}
+    <p class="hint">🔊 Por defecto el video sale <b>sin sonido</b>. Si activas <b>Efectos sonoros</b>, sale <b>con audio</b> (AAC en MP4, Opus en WebM).</p>
     <p class="hint">Funciona en Chrome, Firefox y Edge. En Safari la grabación de video puede no estar disponible.</p>
   `);
 }
@@ -9075,6 +9368,7 @@ function animBindControlEvents() {
     });
   });
 
+  animBindSfx(right);
   const exportBtn = document.getElementById('animExportBtn');
   if (exportBtn) exportBtn.addEventListener('click', animExportVideo);
 }
@@ -9124,12 +9418,22 @@ async function animWebCodecsEncode(canvas, ctx, onProgress) {
   if (!pick) return null;
   try {
     const isMp4 = pick.c.mp4;
+    const wantA = anim.sfx.on && (anim.sfx.bg.on || anim.sfx.events.some(e => e.on));
+    let abuf = null, acfg = null;
+    if (wantA && typeof AudioEncoder !== 'undefined' && typeof AudioData !== 'undefined') {
+      try {
+        abuf = await animSfxRender();
+        acfg = { codec: isMp4 ? 'mp4a.40.2' : 'opus', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 };
+        const sup = await AudioEncoder.isConfigSupported(acfg); if (!sup || !sup.supported) abuf = null;
+      } catch (e) { console.warn('Audio no disponible para exportar', e); abuf = null; }
+    }
     const muxer = isMp4
-      ? new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' })
-      : new WebMMuxer.Muxer({ target: new WebMMuxer.ArrayBufferTarget(), video: { codec: pick.c.mux, width: W, height: H, frameRate: fps } });
+      ? new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, audio: abuf ? { codec: 'aac', numberOfChannels: 2, sampleRate: 48000 } : undefined, fastStart: 'in-memory' })
+      : new WebMMuxer.Muxer({ target: new WebMMuxer.ArrayBufferTarget(), video: { codec: pick.c.mux, width: W, height: H, frameRate: fps }, audio: abuf ? { codec: 'A_OPUS', numberOfChannels: 2, sampleRate: 48000 } : undefined });
     let encErr = null;
     const encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { encErr = e; } });
     encoder.configure(pick.cfg);
+    if (abuf) await animAudioEncode(abuf, acfg, muxer);
     const total = Math.max(1, Math.round(animRealDur() * fps));
     for (let f = 0; f < total; f++) {
       if (encErr) throw encErr;
@@ -9145,7 +9449,7 @@ async function animWebCodecsEncode(canvas, ctx, onProgress) {
     encoder.close();
     muxer.finalize();
     onProgress(1);
-    return { blob: new Blob([muxer.target.buffer], { type: isMp4 ? 'video/mp4' : 'video/webm' }), ext: isMp4 ? 'mp4' : 'webm' };
+    return { blob: new Blob([muxer.target.buffer], { type: isMp4 ? 'video/mp4' : 'video/webm' }), ext: isMp4 ? 'mp4' : 'webm', audio: !!abuf, noAudio: wantA && !abuf };
   } catch (e) {
     console.warn('WebCodecs falló, se usa la grabación en tiempo real', e);
     return null;
@@ -9181,7 +9485,7 @@ async function animExportVideo() {
     const wc = await animWebCodecsEncode(canvas, ctx, (q) => { if (progressFill) progressFill.style.width = Math.round(q * 100) + '%'; });
     if (wc) {
       if (wc.blob.size < 1000) toast('La exportación salió vacía; intenta de nuevo', 'err');
-      else { downloadBlob(wc.blob, animVideoFileName(wc.ext)); toast(`Video exportado (.${wc.ext})`, 'ok'); }
+      else { downloadBlob(wc.blob, animVideoFileName(wc.ext)); toast(`Video exportado (.${wc.ext})${wc.audio ? ' con audio' : ''}`, 'ok'); if (wc.noAudio) toast('Tu navegador no puede codificar audio: el video salió sin sonido', 'err'); }
       return;
     }
     // 2) Respaldo: grabación en tiempo real (fondo transparente o navegadores sin WebCodecs).
@@ -9195,6 +9499,15 @@ async function animExportVideo() {
 
     let stream = canvas.captureStream(0);
     if (!(stream.getVideoTracks()[0] && stream.getVideoTracks()[0].requestFrame)) stream = canvas.captureStream(anim.fps);
+    let actx = null, amaster = null;
+    if (anim.sfx.on && (window.AudioContext || window.webkitAudioContext)) {
+      try {
+        actx = new (window.AudioContext || window.webkitAudioContext)(); const ad = actx.createMediaStreamDestination();
+        amaster = animMasterChain(actx, ad); stream.addTrack(ad.stream.getAudioTracks()[0]);
+        const withA = mimeType.replace(/codecs=([^;]+)/, (m0, cc) => 'codecs=' + cc + (mimeType.startsWith('video/mp4') ? ',mp4a.40.2' : ',opus'));
+        if (withA !== mimeType && MediaRecorder.isTypeSupported(withA)) mimeType = withA;
+      } catch (e) { actx = null; }
+    }
     const track = stream.getVideoTracks()[0];
     const manual = !!(track && track.requestFrame);
     const bps = Math.round(clamp(anim.resW * anim.resH * anim.fps * 0.12, 4e6, 40e6));
@@ -9204,6 +9517,7 @@ async function animExportVideo() {
     const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
 
     recorder.start();
+    if (actx) animSfxRun(actx, amaster, actx.currentTime + 0.1, 0);
     const totalFrames = Math.max(1, Math.round(animRealDur() * anim.fps));
     const t0 = performance.now();
     for (let f = 0; f <= totalFrames; f++) {
@@ -9217,6 +9531,7 @@ async function animExportVideo() {
     await new Promise((r) => setTimeout(r, 250));   // deja salir el último cuadro
     recorder.stop();
     await stopped;
+    if (actx) { try { actx.close(); } catch (e) {} }
 
     const blob = new Blob(chunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
     if (blob.size < 1000) { toast('La grabación salió vacía; intenta de nuevo (revisa que el navegador permita grabar el lienzo)', 'err'); }
