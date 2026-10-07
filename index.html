@@ -7855,43 +7855,53 @@ const animSfxFiles = {};        // audios propios (en memoria): por id de efecto
 let animAC = null, animSess = null;
 const animNoiseBufs = new WeakMap();
 
-const ANIM_SFX_PRESETS = { cadena: 'Cadena Nacional (dinámico)', formal: 'Formal · institucional (sobrio)', epic: 'Épico cinematográfico', luminoso: 'Luminoso · esperanza', moderno: 'Moderno · tecnológico', noticiero: 'Noticiero · impactante', minimal: 'Minimalista · suave', atmos: 'Atmosférico · aire y calma' };
-const ANIM_ST = { rep: 14, gapP: 0.0105, step: 0.5 };   // 14 estrellas, cada una medio tono más alta
+const ANIM_SFX_PRESETS = { cadena: 'Cadena Nacional (dinámico)', formal: 'Formal · institucional (solemne)', epic: 'Épico cinematográfico', luminoso: 'Luminoso · esperanza', moderno: 'Moderno · tecnológico', noticiero: 'Noticiero · impactante', minimal: 'Minimalista · suave', atmos: 'Atmosférico · aire y calma' };
+const ANIM_ST = { rep: 14, gapP: 0.0105, step: 0, scl: [0, 2, 4, 7, 9] };   // 14 estrellas: arpegio ascendente en escala pentatónica de Re mayor (afinado, sin microtonos)
+function animScaleSemi(scl, i) { return scl[i % scl.length] + 12 * Math.floor(i / scl.length); }
 /* m = volumen general · bg = [música sugerida, volumen, entrada, salida] · ev = un sonido [sonido, volumen, tono] (o null) por cada elemento, en este orden:
-   trazos del triángulo (×3, cada uno más agudo), volcán, emblema, estrellas, orbes, destello, peso del destello, retroceso, línea divisoria, textos, logo, cierre */
+   trazos del triángulo (×3, cada uno más agudo), volcán, emblema, estrellas, orbes, destello, peso del destello, retroceso, línea divisoria, textos, logo, cierre
+   Todos los preestablecidos usan una paleta formal (timbales, cuerdas, metales, campana afinada) en la tonalidad de Re mayor. */
 const ANIM_SFX_DATA = {
-  cadena:    { m: 0.9,  bg: ['ambient', 0.45, 0.4, 1.2], ev: [['sweep', 0.4, 1], ['whoosh', 0.5, 1], ['swell', 0.5, 1], ['pop', 0.5, 1], ['shimmer', 0.3, 1], ['impact', 0.7, 1], ['chime', 0.5, 1], ['whoosh', 0.45, 0.7], ['sweep', 0.45, 1.4], ['sparkle', 0.35, 1], ['chime', 0.35, 1.2], ['chime', 0.35, 0.5]] },
-  formal:    { m: 0.85, bg: ['orch', 0.4, 1.2, 2],        ev: [['timpani', 0.35, 1], ['strings', 0.35, 1.1], ['strings', 0.5, 1], ['bell', 0.15, 2], ['strings', 0.3, 1.3], ['timpani', 0.7, 0.8], ['brass', 0.5, 1], ['strings', 0.4, 0.8], ['strings', 0.3, 1.2], ['bell', 0.2, 1.5], ['resolve', 0.5, 1], ['bell', 0.3, 1]] },
-  epic:      { m: 0.9,  bg: ['epic', 0.5, 0.8, 2],        ev: [['swell', 0.35, 0.9], ['whoosh', 0.5, 0.8], ['brass', 0.5, 0.8], ['chime', 0.2, 1.5], ['shimmer', 0.3, 0.8], ['impact', 0.9, 0.9], ['brass', 0.55, 1], ['whoosh', 0.5, 0.6], ['timpani', 0.5, 0.9], ['brass', 0.35, 1.2], ['resolve', 0.6, 1], ['bell', 0.35, 0.8]] },
-  luminoso:  { m: 0.85, bg: ['bright', 0.4, 0.6, 1.5],    ev: [['chime', 0.25, 1.5], ['sparkle', 0.3, 1], ['swell', 0.35, 1.5], ['chime', 0.22, 1.2], ['shimmer', 0.3, 1.2], ['sparkle', 0.5, 1], ['chime', 0.45, 1], ['shimmer', 0.35, 1], ['chime', 0.3, 1.8], ['sparkle', 0.35, 1.2], ['chime', 0.4, 1.3], ['chime', 0.35, 1]] },
-  moderno:   { m: 0.85, bg: ['pulse', 0.4, 0.3, 1],       ev: [['click', 0.5, 1], ['whoosh', 0.45, 1.4], ['sweep', 0.5, 1.3], ['pop', 0.45, 1.2], ['shimmer', 0.25, 1.3], ['impact', 0.6, 1.4], ['click', 0.5, 0.8], ['whoosh', 0.4, 1.2], ['sweep', 0.45, 1.6], ['pop', 0.4, 1.4], ['sparkle', 0.4, 1.3], ['click', 0.5, 0.7]] },
-  noticiero: { m: 0.9,  bg: ['solemn', 0.35, 0.3, 1.2],   ev: [['timpani', 0.5, 1.1], ['whoosh', 0.4, 1.2], ['brass', 0.45, 1], ['pop', 0.3, 1.3], ['whoosh', 0.3, 1.3], ['timpani', 0.8, 0.9], ['brass', 0.6, 1.1], ['whoosh', 0.4, 1], ['timpani', 0.4, 1.2], ['click', 0.4, 1], ['resolve', 0.55, 1.1], ['timpani', 0.5, 1]] },
-  minimal:   { m: 0.8,  bg: ['ambient', 0.3, 1, 1.8],     ev: [['click', 0.2, 1.3], ['sweep', 0.2, 1], ['swell', 0.25, 0.8], ['chime', 0.1, 1.4], null, null, ['chime', 0.25, 1], ['sweep', 0.2, 0.8], ['click', 0.2, 1], ['chime', 0.2, 1.5], ['chime', 0.3, 1], ['chime', 0.25, 0.5]] },
-  atmos:     { m: 0.85, bg: ['wind', 0.5, 1.2, 2],        ev: [['sweep', 0.3, 0.8], ['whoosh', 0.35, 0.7], ['swell', 0.4, 0.7], ['chime', 0.12, 1.4], ['shimmer', 0.3, 1], ['shimmer', 0.35, 0.9], ['chime', 0.3, 0.8], ['whoosh', 0.3, 0.5], ['sweep', 0.3, 1], ['shimmer', 0.25, 1.2], ['chime', 0.3, 0.8], ['bell', 0.25, 1.2]] },
+  cadena:    { m: 1, bg: ['orch', 0.55, 0.4, 1.4],     ev: [['timpani', 0.6, 1], ['whoosh', 0.6, 1], ['strings', 0.6, 1], ['chime', 0.28, 0.25], ['strings', 0.4, 1.5], ['hit', 0.95, 1], ['timpani', 0.9, 0.75], ['whoosh', 0.5, 0.7], ['tick', 0.4, 1], ['bell', 0.4, 1], ['resolve', 0.8, 1], ['bell', 0.5, 0.5]] },
+  formal:    { m: 1, bg: ['orch', 0.6, 1.2, 2],        ev: [['timpani', 0.6, 1], ['strings', 0.55, 1], ['strings', 0.7, 1], ['chime', 0.25, 0.25], ['strings', 0.5, 1.5], ['hit', 0.9, 1], ['timpani', 0.95, 0.75], ['strings', 0.6, 0.75], ['strings', 0.5, 1.5], ['bell', 0.4, 1], ['resolve', 0.85, 1], ['bell', 0.55, 0.5]] },
+  epic:      { m: 1, bg: ['epic', 0.65, 0.8, 2],       ev: [['swell', 0.6, 1], ['whoosh', 0.6, 0.8], ['brass', 0.7, 1], ['chime', 0.25, 0.25], ['strings', 0.6, 1], ['hit', 1, 1], ['brass', 0.85, 1], ['whoosh', 0.55, 0.6], ['timpani', 0.9, 0.75], ['brass', 0.65, 1.5], ['resolve', 0.95, 1], ['bell', 0.6, 0.5]] },
+  luminoso:  { m: 1, bg: ['bright', 0.55, 0.6, 1.5],   ev: [['chime', 0.4, 1], ['strings', 0.45, 1.5], ['swell', 0.55, 1], ['chime', 0.3, 0.25], ['bell', 0.3, 1], ['hit', 0.8, 1], ['bell', 0.5, 0.5], ['strings', 0.5, 1.5], ['chime', 0.4, 1], ['bell', 0.4, 1], ['resolve', 0.8, 1], ['bell', 0.5, 1]] },
+  moderno:   { m: 1, bg: ['pulse', 0.55, 0.3, 1],      ev: [['tick', 0.6, 1], ['sweep', 0.55, 1.2], ['swell', 0.5, 1], ['tick', 0.3, 0.3], ['shimmer', 0.3, 1.3], ['hit', 0.8, 1], ['impact', 0.8, 1.2], ['sweep', 0.55, 1.4], ['tick', 0.5, 0.8], ['tick', 0.5, 1.3], ['resolve', 0.75, 1], ['bell', 0.45, 0.5]] },
+  noticiero: { m: 1, bg: ['solemn', 0.5, 0.3, 1.2],    ev: [['timpani', 0.75, 1], ['whoosh', 0.5, 1.2], ['brass', 0.65, 1], ['tick', 0.3, 0.3], ['whoosh', 0.4, 1.3], ['hit', 1, 1], ['brass', 0.85, 1], ['whoosh', 0.5, 1], ['timpani', 0.6, 1.5], ['tick', 0.5, 1], ['resolve', 0.85, 1], ['timpani', 0.7, 0.75]] },
+  minimal:   { m: 0.95, bg: ['ambient', 0.45, 1, 1.8], ev: [['tick', 0.3, 1], ['sweep', 0.3, 1], ['swell', 0.35, 1], ['chime', 0.2, 0.25], null, null, ['bell', 0.35, 1], ['sweep', 0.3, 0.8], ['tick', 0.3, 0.8], ['bell', 0.3, 1], ['bell', 0.4, 1], ['bell', 0.4, 0.5]] },
+  atmos:     { m: 1, bg: ['wind', 0.6, 1.2, 2],        ev: [['sweep', 0.4, 0.8], ['whoosh', 0.45, 0.7], ['swell', 0.55, 1], ['chime', 0.2, 0.25], ['shimmer', 0.4, 1], ['shimmer', 0.45, 0.9], ['bell', 0.45, 0.5], ['whoosh', 0.4, 0.5], ['sweep', 0.4, 1], ['shimmer', 0.3, 1.2], ['bell', 0.4, 1], ['bell', 0.5, 0.5]] },
 };
 function animSfxPresetData(key) {
-  const D = ANIM_SFX_DATA[key] || ANIM_SFX_DATA.cadena, slots = ['tri', 'brush', 'emblem', 'stars', 'orbs', 'flash', 'flash2', 'back', 'divider', 'texts', 'logo', 'final'], evs = [];
+  const D = ANIM_SFX_DATA[key] || ANIM_SFX_DATA.formal, slots = ['tri', 'brush', 'emblem', 'stars', 'orbs', 'flash', 'flash2', 'back', 'divider', 'texts', 'logo', 'final'], evs = [];
   const add = (id, cue, name, a, pm, extra) => { if (a) evs.push(Object.assign({ id, name, on: true, snd: a[0], cue, vol: a[1], pitch: a[2] * (pm || 1), off: 0, rep: 1, gapP: 0, step: 0 }, extra || {})); };
   D.ev.forEach((a, i) => {
     const n = slots[i];
-    if (n === 'tri') { add('tri', 'tri', ANIM_CUES.tri, a); add('tri2', 'tri2', ANIM_CUES.tri2, a, 1.12); add('tri3', 'tri3', ANIM_CUES.tri3, a, 1.26); }   // cada trazo, un poco más agudo
+    if (n === 'tri') { add('tri', 'tri', ANIM_CUES.tri, a); add('tri2', 'tri2', ANIM_CUES.tri2, a, 1.122); add('tri3', 'tri3', ANIM_CUES.tri3, a, 1.26); }   // cada trazo, un grado más agudo (Re · Mi · Fa#)
     else if (n === 'flash2') add(n, 'flash', 'Peso del escudo completo', a);
     else add(n, n, ANIM_CUES[n], a, 1, n === 'stars' ? ANIM_ST : null);
   });
   return { master: D.m, bg: { on: false, src: D.bg[0], vol: D.bg[1], fadeIn: D.bg[2], fadeOut: D.bg[3], fileName: '' }, events: evs };   // la música de fondo queda apagada por defecto
 }
-function animSfxApply(key) {   // aplica un preestablecido (también sirve para restablecer ajustes)
+/* Aplica un preestablecido (también sirve para restablecer ajustes).
+   keepOwn = true: conserva los archivos de audio que cargó la persona (música de fondo propia y sonido propio de la animación). */
+function animSfxApply(key, keepOwn) {
   const S = anim.sfx, d = animSfxPresetData(key);
-  Object.keys(animSfxFiles).forEach(k => delete animSfxFiles[k]);
-  S.preset = key; S.master = d.master; S.bg = d.bg; S.events = d.events;
+  Object.keys(animSfxFiles).forEach(k => { if ((k === 'bg' || k === 'fx') && keepOwn) return; delete animSfxFiles[k]; });
+  S.preset = key; S.master = d.master; S.events = d.events;
+  if (!(keepOwn && S.bg && S.bg.src === 'file')) S.bg = d.bg;
+  if (!keepOwn || !S.fx) S.fx = { src: 'preset', vol: 1, span: 'anim', fadeOut: 0.6 };
 }
-/* el sonido viene apagado: la animación y el video salen sin audio hasta que lo actives */
-anim.sfx = { on: false, preset: 'cadena', full: false }; animSfxApply('cadena');
+/* el sonido viene apagado: la animación y el video salen sin audio hasta que lo actives.
+   sfx.fx = sonido SOLO de la animación (efectos del preestablecido, un archivo propio o nada) · sfx.bg = música de fondo (independiente) */
+anim.sfx = { on: false, preset: 'formal', full: false, fx: { src: 'preset', vol: 1, span: 'anim', fadeOut: 0.6 } }; animSfxApply('formal', false);
 
-function animMasterChain(c, dest) {   // volumen general + limitador suave (evita saturar al sumar capas)
-  const m = c.createGain(), lim = c.createDynamicsCompressor(); m.gain.value = anim.sfx.master;
-  lim.threshold.value = -8; lim.knee.value = 8; lim.ratio.value = 10; lim.attack.value = 0.003; lim.release.value = 0.2;
-  m.connect(lim); lim.connect(dest); return m;
+function animMasterChain(c, dest) {   // volumen general → compresor → ganancia de compensación → limitador suave (más fuerza sin distorsión ni recortes)
+  const m = c.createGain(), lim = c.createDynamicsCompressor(), mk = c.createGain(), ws = c.createWaveShaper(); m.gain.value = anim.sfx.master;
+  lim.threshold.value = -12; lim.knee.value = 10; lim.ratio.value = 6; lim.attack.value = 0.004; lim.release.value = 0.25;
+  mk.gain.value = 1.25;
+  const N = 2048, cv = new Float32Array(N); for (let i = 0; i < N; i++) cv[i] = 0.9 * Math.tanh((i / (N - 1) * 2 - 1) / 0.9);   // limitador suave: la salida nunca supera 0.9
+  ws.curve = cv; ws.oversample = '2x';
+  m.connect(lim); lim.connect(mk); mk.connect(ws); ws.connect(dest); return m;
 }
 function animAcGet() { if (!animAC) animAC = new (window.AudioContext || window.webkitAudioContext)(); if (animAC.state === 'suspended') animAC.resume(); return animAC; }
 function animNoiseSrc(c) {
@@ -7917,19 +7927,32 @@ function animChord(c, o, t, freqs, type, a, d, v, lp0, lp1) {   // acorde con os
   freqs.forEach(f => [-6, 6].forEach(dt => { const os = c.createOscillator(); os.type = type; os.frequency.value = f; os.detune.value = dt; os.connect(lp); os.start(t); os.stop(t + a + d + 0.05); }));
 }
 const ANIM_SND = {
-  whoosh:  { label: 'Whoosh (aire que pasa)',   f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'bandpass', 300 * p, 3600 * p, 1.2, 0.35, 0.65, v * 0.9) },
-  sweep:   { label: 'Barrido suave',            f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'lowpass', 400 * p, 2600 * p, 0.8, 0.12, 0.5, v * 0.7) },
-  swell:   { label: 'Crescendo (pad)',          f: (c, o, t, v, p) => { [110, 110.8, 165].forEach(f => animTone(c, o, t, 'sawtooth', f * p, f * p, 0.9, 1.1, v * 0.16)); } },
-  chime:   { label: 'Campanilla',               f: (c, o, t, v, p) => { [[1, 1], [2.76, 0.4], [5.4, 0.15]].forEach(([m, a]) => animTone(c, o, t, 'sine', 523.25 * m * p, 523.25 * m * p, 0.005, 1.7 / m ** 0.5, v * a * 0.6)); } },
+  whoosh:  { label: 'Whoosh (aire que pasa)',   f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'bandpass', 300 * p, 3600 * p, 1.2, 0.35, 0.65, v * 1.0) },
+  sweep:   { label: 'Barrido suave',            f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'lowpass', 400 * p, 2600 * p, 0.8, 0.12, 0.5, v * 0.8) },
+  swell:   { label: 'Crescendo (pad)',          f: (c, o, t, v, p) => { [110, 110.8, 165].forEach(f => animTone(c, o, t, 'sawtooth', f * p, f * p, 0.9, 1.1, v * 0.24)); } },
+  chime:   { label: 'Campanilla (afinada)',     f: (c, o, t, v, p) => { const F = 587.33 * p; [[1, 1, 1.9], [2, 0.36, 1.2], [3, 0.14, 0.7]].forEach(([m, a, d]) => animTone(c, o, t, 'sine', F * m, F * m, 0.004, d, v * a * 0.55)); } },   // parciales armónicos (1·2·3): suena limpia y afinada en Re
   sparkle: { label: 'Destellos brillantes',     f: (c, o, t, v, p) => { for (let i = 0; i < 12; i++) animTone(c, o, t + i * 0.065, 'sine', (2000 + ((i * 7919) % 97) * 45) * p, (2000 + ((i * 7919) % 97) * 45) * p, 0.002, 0.14, v * 0.2); } },
-  impact:  { label: 'Impacto grave',            f: (c, o, t, v, p) => { animTone(c, o, t, 'sine', 120 * p, 38 * p, 0.005, 1.1, v * 0.9); animNoiseBand(c, o, t, 'lowpass', 500, 120, 0.7, 0.003, 0.4, v * 0.5); } },
+  impact:  { label: 'Impacto grave',            f: (c, o, t, v, p) => { animTone(c, o, t, 'sine', 120 * p, 38 * p, 0.005, 1.1, v * 1.0); animNoiseBand(c, o, t, 'lowpass', 500, 120, 0.7, 0.003, 0.4, v * 0.55); } },
   pop:     { label: 'Pop (burbuja)',            f: (c, o, t, v, p) => animTone(c, o, t, 'sine', 620 * p, 900 * p, 0.003, 0.14, v * 0.45) },
-  shimmer: { label: 'Brillo agudo',             f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'bandpass', 5000 * p, 9000 * p, 3, 0.8, 0.9, v * 0.35) },
-  timpani: { label: 'Timbal (percusión grave)', f: (c, o, t, v, p) => { animTone(c, o, t, 'sine', 98 * p, 62 * p, 0.004, 0.95, v * 0.9); animTone(c, o, t, 'sine', 147 * p, 93 * p, 0.004, 0.5, v * 0.25); animNoiseBand(c, o, t, 'lowpass', 700, 160, 0.7, 0.002, 0.12, v * 0.3); } },
-  strings: { label: 'Cuerdas (crescendo solemne)', f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 220 * p, 293.66 * p, 440 * p], 'sawtooth', 1.0, 1.7, v * 0.07, 700, 1500) },
-  brass:   { label: 'Metales (acorde mayor)',   f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 220 * p, 293.66 * p, 369.99 * p], 'sawtooth', 0.3, 1.5, v * 0.07, 450, 2300) },
-  resolve: { label: 'Acorde final (llegada)',   f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 293.66 * p, 369.99 * p, 440 * p, 587.33 * p], 'sawtooth', 0.06, 2.4, v * 0.06, 1900, 800) },
-  bell:    { label: 'Campana grave',            f: (c, o, t, v, p) => { [[1, 1], [2, 0.5], [2.4, 0.3], [3, 0.2], [4.2, 0.1]].forEach(([m, a], i) => animTone(c, o, t, 'sine', 196 * m * p, 196 * m * p, 0.004, 3 / (1 + i * 0.5), v * a * 0.5)); } },
+  shimmer: { label: 'Brillo agudo',             f: (c, o, t, v, p) => animNoiseBand(c, o, t, 'bandpass', 5000 * p, 9000 * p, 3, 0.8, 0.9, v * 0.4) },
+  timpani: { label: 'Timbal (percusión grave)', f: (c, o, t, v, p) => { animTone(c, o, t, 'sine', 98 * p, 62 * p, 0.004, 1.0, v * 1.1); animTone(c, o, t, 'sine', 147 * p, 93 * p, 0.004, 0.55, v * 0.32); animNoiseBand(c, o, t, 'lowpass', 700, 160, 0.7, 0.002, 0.14, v * 0.4); } },
+  strings: { label: 'Cuerdas (crescendo solemne)', f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 220 * p, 293.66 * p, 440 * p], 'sawtooth', 1.0, 1.7, v * 0.15, 800, 1700) },
+  brass:   { label: 'Metales (acorde mayor)',   f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 220 * p, 293.66 * p, 369.99 * p], 'sawtooth', 0.3, 1.5, v * 0.15, 500, 2500) },
+  resolve: { label: 'Acorde final (llegada)',   f: (c, o, t, v, p) => animChord(c, o, t, [146.83 * p, 293.66 * p, 369.99 * p, 440 * p, 587.33 * p], 'sawtooth', 0.06, 2.4, v * 0.13, 2100, 850) },
+  bell:    { label: 'Campana ceremonial (afinada)', f: (c, o, t, v, p) => {   // parciales armónicos 1·2·3·4 (sin los inarmónicos que sonaban raros), doble oscilador levemente desafinado y golpe breve
+    const F = 293.66 * p;
+    [[1, 1, 3.6], [2, 0.5, 2.6], [3, 0.25, 1.7], [4, 0.12, 1.0]].forEach(([m, a, d]) => [-3, 3].forEach(ct => {
+      const os = c.createOscillator(), g = c.createGain(); os.type = 'sine'; os.frequency.value = F * m; os.detune.value = ct;
+      animEnv(g, t, 0.006, v * a * 0.45, d); os.connect(g); g.connect(o); os.start(t); os.stop(t + d + 0.06);
+    }));
+    animNoiseBand(c, o, t, 'bandpass', 4200 * p, 2600 * p, 1.4, 0.001, 0.05, v * 0.1);
+  } },
+  hit:     { label: 'Golpe orquestal (solemne)', f: (c, o, t, v, p) => {   // timbal grave + acorde de metales + soplo: impacto fuerte pero formal
+    animTone(c, o, t, 'sine', 110 * p, 50 * p, 0.004, 1.3, v * 1.0); animTone(c, o, t, 'sine', 73.42 * p, 45 * p, 0.004, 1.6, v * 0.7);
+    animChord(c, o, t, [146.83 * p, 220 * p, 293.66 * p, 369.99 * p, 440 * p], 'sawtooth', 0.02, 1.6, v * 0.16, 3200, 900);
+    animNoiseBand(c, o, t, 'lowpass', 2500, 300, 0.7, 0.002, 0.5, v * 0.35);
+  } },
+  tick:    { label: 'Toque suave (madera)',     f: (c, o, t, v, p) => { animTone(c, o, t, 'sine', 1200 * p, 900 * p, 0.001, 0.09, v * 0.5); animTone(c, o, t, 'triangle', 600 * p, 450 * p, 0.001, 0.12, v * 0.35); animNoiseBand(c, o, t, 'bandpass', 3000 * p, 2000 * p, 2, 0.001, 0.03, v * 0.15); } },
   click:   { label: 'Clic seco',                f: (c, o, t, v, p) => animTone(c, o, t, 'square', 1800 * p, 1800 * p, 0.001, 0.03, v * 0.3) },
 };
 const ANIM_PADS = {
@@ -7969,11 +7992,43 @@ function animCueTimes(cue, ex) {
 }
 function animSfxPlan() {
   const out = [];
+  if (anim.sfx.fx.src !== 'preset') return out;   // con archivo propio o sin sonido de animación, no suenan los efectos sintetizados
   anim.sfx.events.forEach(ev => {
     if (!ev.on) return;
-    for (let i = 0; i < Math.max(1, ev.rep | 0); i++) animCueTimes(ev.cue, i * (ev.gapP || 0)).forEach(o => out.push({ t: clamp(o.t + (ev.off || 0), 0, Math.max(0, animRealDur() - 0.3)), ev, pitch: ev.pitch * Math.pow(2, i * (ev.step || 0) / 12) * (o.out ? 0.8 : 1) }));
+    for (let i = 0; i < Math.max(1, ev.rep | 0); i++) animCueTimes(ev.cue, i * (ev.gapP || 0)).forEach(o => out.push({ t: clamp(o.t + (ev.off || 0), 0, Math.max(0, animRealDur() - 0.3)), ev, pitch: ev.pitch * Math.pow(2, (ev.scl ? animScaleSemi(ev.scl, i) : i * (ev.step || 0)) / 12) * (o.out ? 0.75 : 1) }));
   });
   return out;
+}
+/* Tramos (segundos reales) en que suena el audio propio de la animación.
+   'anim' = solo mientras se arma (intro: desde 0 hasta que el logo queda estable; outro: desde que empieza a desaparecer hasta el final). 'video' = todo el video. */
+function animFxSegments() {
+  const fx = anim.sfx.fx, dur = animRealDur(), seq = anim.seq || 'auto', mode = anim.mode, sp = Math.max(0.1, anim.speed || 1);
+  if (fx.span === 'video') return [{ s: 0, e: dur }];
+  const segs = [], push = (s, e) => { s = clamp(s, 0, dur); e = clamp(e, 0, dur); if (e - s > 0.15 && !segs.some(x => Math.abs(x.s - s) < 0.01 && Math.abs(x.e - e) < 0.01)) segs.push({ s, e }); };
+  if (mode === 'both' && seq === 'auto') {   // Intro + Outro clásico: suena en el tramo de intro y en el de outro, y se calla en la pausa del medio
+    const iS = Math.max(0.3, anim.introSec) / sp, hS = Math.max(0, anim.holdSec) / sp, oS = Math.max(0.3, anim.outroSec) / sp;
+    push(0, iS); push(iS + hS, iS + hS + oS);
+  } else {
+    // Cadena Nacional o intro clásico: hasta que el logo queda estable ("final"); resto de estilos: hasta que cierra ("end")
+    const cue = ((seq === 'auto' && mode === 'intro') || seq === 'cadena') ? 'final' : 'end';
+    animCueTimes(cue).forEach(o => o.out ? push(o.t, dur) : push(0, o.t));
+  }
+  return segs.length ? segs : [{ s: 0, e: dur }];
+}
+function animFxFilePlay(c, o, at, fromT) {   // reproduce el archivo propio de la animación (una vez por tramo, con salida gradual)
+  const fx = anim.sfx.fx; if (fx.src !== 'file') return; const f = animSfxFiles.fx; if (!f) return;
+  animFxSegments().forEach(sg => {
+    if (sg.e <= fromT + 0.05) return;
+    const st = Math.max(sg.s, fromT), when = at + (st - fromT), inFile = st - sg.s;
+    if (inFile >= f.buf.duration - 0.02) return;
+    const play = Math.min(sg.e - st, f.buf.duration - inFile), fo = Math.min(Math.max(0.02, fx.fadeOut), play), fi = Math.min(0.03, play);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, when); g.gain.linearRampToValueAtTime(1, when + fi); g.gain.setValueAtTime(1, when + Math.max(fi, play - fo)); g.gain.linearRampToValueAtTime(0.0001, when + play); g.connect(o);
+    const sr = c.createBufferSource(); sr.buffer = f.buf; sr.connect(g); sr.start(when, inFile, play);
+  });
+}
+function animSfxHasAudio() {   // ¿hay algo que sonar? (para decidir si el video lleva pista de audio)
+  const S = anim.sfx; if (!S.on) return false;
+  return !!(S.bg.on || (S.fx.src === 'file' ? animSfxFiles.fx : S.fx.src === 'preset' && S.events.some(e => e.on)));
 }
 function animBgPlay(c, o, t, dur, fromT) {
   const bg = anim.sfx.bg; if (!bg.on || dur <= 0.05) return;
@@ -8002,8 +8057,10 @@ function animBgPlay(c, o, t, dur, fromT) {
   n.connect(bp); bp.connect(sg); sg.connect(g); n.start(t); n.stop(t + dur);
 }
 function animSfxRun(c, o, at, fromT) {
-  animSfxPlan().forEach(it => { if (it.t >= fromT - 0.02) animSfxFire(c, o, at + Math.max(0, it.t - fromT), it.ev, it.pitch); });
-  animBgPlay(c, o, at, animRealDur() - fromT, fromT);
+  const fxg = c.createGain(); fxg.gain.value = anim.sfx.fx.vol; fxg.connect(o);   // capa "sonido de la animación": su propio volumen, aparte de la música de fondo
+  animSfxPlan().forEach(it => { if (it.t >= fromT - 0.02) animSfxFire(c, fxg, at + Math.max(0, it.t - fromT), it.ev, it.pitch); });
+  animFxFilePlay(c, fxg, at, fromT);
+  animBgPlay(c, o, at, animRealDur() - fromT, fromT);   // capa "música de fondo": todo el video
 }
 function animAudioStart(fromT) {
   animAudioStop();
@@ -8016,7 +8073,7 @@ function animAudioStop() {
 }
 async function animSfxRender() {   // audio completo del video (estéreo, 48 kHz)
   if (!anim.sfx.on || typeof OfflineAudioContext === 'undefined') return null;
-  if (!anim.sfx.bg.on && !animSfxPlan().length) return null;
+  if (!animSfxHasAudio()) return null;
   const sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(sr * animRealDur()), sr), m = animMasterChain(oc, oc.destination);
   animSfxRun(oc, m, 0, 0);
   return await oc.startRendering();
@@ -8035,12 +8092,16 @@ async function animSfxDecode(file) { return await new OfflineAudioContext(2, 1, 
 function animEsc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 function animCardSfx() {
-  const S = anim.sfx, bg = S.bg, fm = { pct: v => Math.round(v * 100) + '%', x: v => Number(v).toFixed(2) + '×', s: v => Number(v).toFixed(1) + ' s' };
+  const S = anim.sfx, bg = S.bg, fx = S.fx, fm = { pct: v => Math.round(v * 100) + '%', x: v => Number(v).toFixed(2) + '×', s: v => Number(v).toFixed(1) + ' s' };
   const opt = (arr, cur) => arr.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
   const rng = (lbl, attr, min, max, step, val, u) => `<div class="field" style="margin:6px 0 0;"><label class="flabel">${lbl} <span class="val">${fm[u](val)}</span></label><input type="range" min="${min}" max="${max}" step="${step}" value="${val}" ${attr} data-u="${u}"></div>`;
   const snd = Object.keys(ANIM_SND).map(k => [k, ANIM_SND[k].label]).concat([['file', '🎵 Mi archivo de audio…']]);
   const cues = Object.keys(ANIM_CUES).map(k => [k, ANIM_CUES[k]]);
   const bgSrc = Object.keys(ANIM_PADS).map(k => [k, ANIM_PADS[k].label]).concat([['file', '🎵 Mi música (archivo)…']]);
+  const fxSrcOpts = [['preset', 'Efectos del preestablecido'], ['file', '🎵 Mi archivo de audio…'], ['none', 'Sin sonido en la animación']];
+  const fxSpanOpts = [['anim', 'Solo mientras se arma la animación'], ['video', 'Durante todo el video']];
+  const sep = 'border-top:1px solid var(--panel-border);padding-top:10px;margin-top:12px;';
+  const nOn = S.events.filter(e => e.on).length;
   const rows = S.events.map(e => `<div class="sfx-row ${e.on ? '' : 'off'}">
     <div class="sfx-h"><input type="checkbox" ${e.on ? 'checked' : ''} data-sfx-on="${e.id}" title="Activar / desactivar"><input type="text" class="sfx-name" value="${animEsc(e.name)}" data-sfx-f="name" data-sfx-id="${e.id}">
       <span class="sfx-b"><button type="button" class="btn ghost" data-sfx-test="${e.id}" title="Probar este efecto">▶</button><button type="button" class="btn ghost" data-sfx-del="${e.id}" title="Quitar efecto">✕</button></span></div>
@@ -8050,36 +8111,55 @@ function animCardSfx() {
     ${rng('Volumen', `data-sfx-f="vol" data-sfx-id="${e.id}"`, 0, 1, 0.05, e.vol, 'pct')}
     ${rng('Tono', `data-sfx-f="pitch" data-sfx-id="${e.id}"`, 0.5, 2, 0.05, e.pitch, 'x')}
     ${rng('Desfase', `data-sfx-f="off" data-sfx-id="${e.id}"`, -1, 1, 0.1, e.off, 's')}
-    ${e.rep > 1 ? `<p class="hint" style="margin:4px 0 0;">Se repite <b>${e.rep}</b> veces, subiendo de tono.</p>` : ''}
+    ${e.rep > 1 ? `<p class="hint" style="margin:4px 0 0;">Se repite <b>${e.rep}</b> veces, subiendo de tono${e.scl ? ' (escala musical)' : ''}.</p>` : ''}
   </div>`).join('');
+
+  /* --- Sonido SOLO de la animación (independiente de la música de fondo) --- */
+  const fxHint = fx.src === 'preset'
+    ? `Suenan los <b>${nOn} efectos</b> del preestablecido, sincronizados con cada trazo y cada elemento que aparece.`
+    : fx.src === 'file'
+      ? `Tu audio suena ${fx.span === 'anim' ? 'solo durante la animación y se apaga con salida gradual cuando el logo queda estable' : 'durante todo el video'}. No afecta la música de fondo.`
+      : 'La animación va sin efectos; solo se oirá la música de fondo si la activas.';
+  const fxBlock = `<div class="field" style="${sep}"><label class="flabel">Sonido de la animación</label>
+    <select data-sfx-g="fxSrc">${opt(fxSrcOpts, fx.src)}</select>
+    ${fx.src === 'file' ? `<input type="file" accept="audio/*" data-sfx-fxfile style="margin-top:6px;width:100%;"><p class="hint">${animSfxFiles.fx ? 'Cargado: <b>' + animEsc(animSfxFiles.fx.name) + '</b> (' + animSfxFiles.fx.buf.duration.toFixed(1) + ' s)' : 'Elige el audio que sonará solo en la animación (mp3, wav, ogg…).'}</p>
+      <button class="btn ghost" type="button" data-sfx-fxtest style="width:100%;justify-content:center;">▶ Probar este audio</button>
+      <label class="flabel" style="margin-top:8px;">¿Cuándo suena?</label><select data-sfx-g="fxSpan">${opt(fxSpanOpts, fx.span)}</select>
+      ${rng('Salida gradual', 'data-sfx-g="fxOut"', 0, 3, 0.1, fx.fadeOut, 's')}` : ''}
+    ${fx.src !== 'none' ? rng('Volumen de la animación', 'data-sfx-g="fxVol"', 0, 1.5, 0.05, fx.vol, 'pct') : ''}
+    <p class="hint">${fxHint}</p></div>`;
+
+  /* --- Música de fondo (acompaña todo el video, aparte del sonido de la animación) --- */
+  const bgBlock = `<div class="field" style="${sep}"><label class="flabel">Música de fondo</label>
+    <label class="check-row"><input type="checkbox" ${bg.on ? 'checked' : ''} data-sfx-g="bgOn"> <b>Activar música de fondo</b></label>
+    ${bg.on ? `<select data-sfx-g="bgSrc" style="margin-top:6px;">${opt(bgSrc, bg.src)}</select>
+      ${bg.src === 'file' ? `<input type="file" accept="audio/*" data-sfx-bgfile style="margin-top:6px;width:100%;"><p class="hint">${animSfxFiles.bg ? 'Cargada: <b>' + animEsc(animSfxFiles.bg.name) + '</b> (se repite y se recorta a la duración del video)' : 'Elige tu música (mp3, wav, ogg…).'}</p>` : ''}
+      ${rng('Volumen de la música', 'data-sfx-g="bgVol"', 0, 1, 0.05, bg.vol, 'pct')}
+      ${rng('Entrada gradual', 'data-sfx-g="bgIn"', 0, 3, 0.1, bg.fadeIn, 's')}
+      ${rng('Salida gradual', 'data-sfx-g="bgOut"', 0, 4, 0.1, bg.fadeOut, 's')}` : `<p class="hint" style="margin:2px 0 0 24px;">Apagada por defecto. Suena durante todo el video, independiente del sonido de la animación.</p>`}
+  </div>`;
+
+  const fxRows = !S.full ? '' : fx.src === 'preset'
+    ? `<div class="field" style="${sep}"><label class="flabel">Efectos por momento</label>
+      <p class="hint" style="margin:0;">Vienen según el preestablecido elegido; edita sonido, momento, volumen, tono y desfase, o desactívalos. ▶ prueba cada uno.</p>
+      ${rows}
+      <button class="btn" type="button" data-sfx-add style="width:100%;justify-content:center;">+ Agregar efecto</button></div>
+      <p class="hint">Con otros estilos de animación los momentos se reparten por porcentaje de la duración.</p>`
+    : `<p class="hint" style="margin:10px 0 0;">Los efectos por momento solo se usan cuando el sonido de la animación es «Efectos del preestablecido».</p>`;
+
   return cardWrap('animSfx', ICONS.speaker, 'Efectos sonoros', `
     <div class="field"><label class="flabel">Ajuste preestablecido</label>
       <select data-sfx-preset>${opt(Object.keys(ANIM_SFX_PRESETS).map(k => [k, ANIM_SFX_PRESETS[k]]), S.preset)}</select>
       <button class="btn ghost" type="button" data-sfx-resetall style="width:100%;justify-content:center;margin-top:6px;">Restablecer ajustes</button>
-      <p class="hint">Elegir un preestablecido reemplaza la música y los efectos actuales (8 opciones). <b>Restablecer ajustes</b> vuelve a los valores del preestablecido elegido.</p></div>
+      <p class="hint">Elegir un preestablecido reemplaza los efectos y la música de fondo, pero conserva los archivos de audio que hayas cargado. <b>Restablecer ajustes</b> vuelve a los valores del preestablecido y quita tus archivos.</p></div>
     <label class="check-row"><input type="checkbox" ${S.on ? 'checked' : ''} data-sfx-g="on"> <b>Activar sonido</b></label>
     <p class="hint" style="margin:2px 0 8px 24px;">${S.on ? 'Suena en la vista previa y se incluye en el video exportado.' : '<b>Apagado por defecto.</b> Actívalo para escuchar la vista previa y exportar el video con audio. Mientras esté apagado, el video sale sin sonido.'}</p>
     ${rng('Volumen general', 'data-sfx-g="master"', 0, 1, 0.05, S.master, 'pct')}
-    ${S.full ? `
-    <div class="field"><label class="flabel">Sonido general · música de fondo</label>
-      <label class="check-row"><input type="checkbox" ${bg.on ? 'checked' : ''} data-sfx-g="bgOn"> <b>Música de fondo</b></label>
-      <select data-sfx-g="bgSrc">${opt(bgSrc, bg.src)}</select>
-      ${bg.src === 'file' ? `<input type="file" accept="audio/*" data-sfx-bgfile style="margin-top:6px;width:100%;"><p class="hint">${animSfxFiles.bg ? 'Cargada: <b>' + animEsc(animSfxFiles.bg.name) + '</b> (se repite y se recorta a la duración del video)' : 'Elige tu música (mp3, wav, ogg…).'}</p>` : ''}
-      ${rng('Volumen de la música', 'data-sfx-g="bgVol"', 0, 1, 0.05, bg.vol, 'pct')}
-      ${rng('Entrada gradual', 'data-sfx-g="bgIn"', 0, 3, 0.1, bg.fadeIn, 's')}
-      ${rng('Salida gradual', 'data-sfx-g="bgOut"', 0, 4, 0.1, bg.fadeOut, 's')}
-    </div>
-    <div class="field"><label class="flabel">Efectos por momento</label>
-      <p class="hint" style="margin:0;">Vienen según el preestablecido elegido; edita sonido, momento, volumen, tono y desfase, o desactívalos. ▶ prueba cada uno.</p>
-      ${rows}
-      <button class="btn" type="button" data-sfx-add style="width:100%;justify-content:center;">+ Agregar efecto</button>
-    </div>
-    <p class="hint">Con otros estilos de animación los momentos se reparten por porcentaje de la duración.</p>`
-    : `<label class="check-row"><input type="checkbox" ${bg.on ? 'checked' : ''} data-sfx-g="bgOn"> <b>Música de fondo</b> <span class="hint" style="margin:0;">(${((ANIM_PADS[bg.src] || {}).label || 'Mi música')})</span></label>
-    <p class="hint" style="margin:2px 0 6px 24px;">Apagada por defecto; al activarla suena junto con los efectos.</p>
-    <p class="hint">Hay <b>${S.events.filter(e => e.on).length} sonidos</b>, uno por cada trazo y por cada cosa que aparece o desaparece: ${S.events.filter(e => e.on).map(e => animEsc(e.name)).join(' · ') || 'ninguno'}.</p>`}
+    ${fxBlock}
+    ${bgBlock}
+    ${fxRows}
     <label class="check-row" style="margin-top:10px;"><input type="checkbox" ${S.full ? 'checked' : ''} data-sfx-g="full"> <b>Edición completa sonora</b></label>
-    <p class="hint" style="margin:2px 0 0 24px;">Muestra la música de fondo y cada efecto para editarlos uno por uno.</p>
+    <p class="hint" style="margin:2px 0 0 24px;">Muestra cada efecto de la animación para editarlos uno por uno.</p>
   `);
 }
 function animBindSfx(r) {
@@ -8087,9 +8167,10 @@ function animBindSfx(r) {
   const fm = { pct: v => Math.round(v * 100) + '%', x: v => v.toFixed(2) + '×', s: v => v.toFixed(1) + ' s' };
   const lbl = (el, v) => { const sp = el.closest('.field') && el.closest('.field').querySelector('.val'); if (sp && el.dataset.u) sp.textContent = fm[el.dataset.u](v); };
   const val = el => el.type === 'checkbox' ? el.checked : el.type === 'range' ? parseFloat(el.value) : el.value;
-  const G = { on: v => S.on = v, master: v => S.master = v, bgOn: v => S.bg.on = v, bgSrc: v => S.bg.src = v, bgVol: v => S.bg.vol = v, bgIn: v => S.bg.fadeIn = v, bgOut: v => S.bg.fadeOut = v, full: v => S.full = v };
+  const G = { on: v => S.on = v, master: v => S.master = v, bgOn: v => S.bg.on = v, bgSrc: v => S.bg.src = v, bgVol: v => S.bg.vol = v, bgIn: v => S.bg.fadeIn = v, bgOut: v => S.bg.fadeOut = v, full: v => S.full = v,
+    fxSrc: v => S.fx.src = v, fxVol: v => S.fx.vol = v, fxSpan: v => S.fx.span = v, fxOut: v => S.fx.fadeOut = v };
   r.querySelectorAll('[data-sfx-g]').forEach(el => el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
-    const k = el.dataset.sfxG, v = val(el); G[k](v); lbl(el, v); if (k === 'bgSrc' || k === 'full' || k === 'bgOn') renderAnimControls(); if (!animPlaying && k === 'on' && !v) animAudioStop(); rs();
+    const k = el.dataset.sfxG, v = val(el); G[k](v); lbl(el, v); if (k === 'bgSrc' || k === 'full' || k === 'bgOn' || k === 'fxSrc') renderAnimControls(); if (!animPlaying && k === 'on' && !v) animAudioStop(); rs();
   }));
   r.querySelectorAll('[data-sfx-f]').forEach(el => el.addEventListener(el.type === 'range' || el.type === 'text' ? 'input' : 'change', () => {
     const ev = S.events.find(e => e.id === el.dataset.sfxId); if (!ev) return; const k = el.dataset.sfxF, v = el.type === 'range' ? parseFloat(el.value) : el.value;
@@ -8110,12 +8191,22 @@ function animBindSfx(r) {
     const f = bf.files && bf.files[0]; if (!f) return;
     try { animSfxFiles.bg = { buf: await animSfxDecode(f), name: f.name }; re(); toast('Música cargada', 'ok'); } catch (e) { toast('No se pudo leer ese archivo de audio', 'err'); }
   });
+  const ff = r.querySelector('[data-sfx-fxfile]');
+  if (ff) ff.addEventListener('change', async () => {
+    const f = ff.files && ff.files[0]; if (!f) return;
+    try { animSfxFiles.fx = { buf: await animSfxDecode(f), name: f.name }; re(); toast('Sonido de la animación cargado', 'ok'); } catch (e) { toast('No se pudo leer ese archivo de audio', 'err'); }
+  });
+  const ft = r.querySelector('[data-sfx-fxtest]');
+  if (ft) ft.addEventListener('click', () => {
+    const f = animSfxFiles.fx; if (!f) { toast('Primero carga un archivo de audio', 'err'); return; }
+    try { const c = animAcGet(), m = animMasterChain(c, c.destination), g = c.createGain(), sr = c.createBufferSource(); g.gain.value = S.fx.vol; sr.buffer = f.buf; sr.connect(g); g.connect(m); sr.start(c.currentTime + 0.02, 0, Math.min(f.buf.duration, 10)); } catch (e) { toast('No se pudo reproducir el audio', 'err'); }
+  });
   const add = r.querySelector('[data-sfx-add]');
   if (add) add.addEventListener('click', () => { S.events.push({ id: 'e' + Date.now(), name: 'Efecto nuevo', on: true, snd: 'chime', cue: 'logo', vol: 0.6, pitch: 1, off: 0, rep: 1, gapP: 0, step: 0 }); re(); });
   const ps = r.querySelector('[data-sfx-preset]');
-  if (ps) ps.addEventListener('change', () => { animSfxApply(ps.value); re(); toast('Preestablecido aplicado: ' + ANIM_SFX_PRESETS[ps.value], 'ok'); });
+  if (ps) ps.addEventListener('change', () => { animSfxApply(ps.value, true); re(); toast('Preestablecido aplicado: ' + ANIM_SFX_PRESETS[ps.value], 'ok'); });
   const ra = r.querySelector('[data-sfx-resetall]');
-  if (ra) ra.addEventListener('click', () => { animSfxApply(S.preset); re(); toast('Ajustes de sonido restablecidos', 'ok'); });
+  if (ra) ra.addEventListener('click', () => { animSfxApply(S.preset, false); re(); toast('Ajustes de sonido restablecidos', 'ok'); });
 }
 
 /* ---------- Easing ---------- */
@@ -9418,7 +9509,7 @@ async function animWebCodecsEncode(canvas, ctx, onProgress) {
   if (!pick) return null;
   try {
     const isMp4 = pick.c.mp4;
-    const wantA = anim.sfx.on && (anim.sfx.bg.on || anim.sfx.events.some(e => e.on));
+    const wantA = animSfxHasAudio();
     let abuf = null, acfg = null;
     if (wantA && typeof AudioEncoder !== 'undefined' && typeof AudioData !== 'undefined') {
       try {
